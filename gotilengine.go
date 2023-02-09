@@ -7,10 +7,13 @@ package gotilengine
 */
 import "C"
 import (
+	// "runtime/cgo"
+)
+import (
 	"unsafe"
 )
 
-// "runtime/cgo"
+
 
 type (
 	CString = *C.char
@@ -528,8 +531,8 @@ func UpdateFrame(frame int) {
 }
 
 // TLNAPI void TLN_SetLoadPath (const char* path);
-func SetLoadPath(path CString) {
-	C.TLN_SetLoadPath(path)
+func SetLoadPath(path string) {
+	C.TLN_SetLoadPath(C.CString(path))
 }
 
 // TLNAPI void TLN_SetCustomBlendFunction (TLN_BlendFunction);
@@ -543,8 +546,8 @@ func SetLogLevel(log_level LogLevel) {
 }
 
 // TLNAPI bool TLN_OpenResourcePack(const char* filename, const char* key);
-func OpenResourcePack(filename CString, key CString) bool {
-	return convertBool(C.TLN_OpenResourcePack(filename, key))
+func OpenResourcePack(filename string, key string) bool {
+	return convertBool(C.TLN_OpenResourcePack(C.CString(filename), C.CString(key)))
 }
 
 // TLNAPI void TLN_CloseResourcePack(void);
@@ -571,26 +574,26 @@ func GetLastError() Error {
 }
 
 // TLNAPI const char *TLN_GetErrorString (TLN_Error error);
-func GetErrorString(error Error) CString {
-	return C.TLN_GetErrorString(error)
+func GetErrorString(error Error) string {
+	return C.GoString(C.TLN_GetErrorString(error))
 }
 // }
 
 
 //, {
 // TLNAPI bool TLN_CreateWindow (const char* overlay, int flags);
-func CreateWindow(overlay CString, flags int) bool {
-	return convertBool(C.TLN_CreateWindow(overlay, CInt(flags)))
+func CreateWindow(overlay string, flags int) bool {
+	return convertBool(C.TLN_CreateWindow(C.CString(overlay), CInt(flags)))
 }
 
 // TLNAPI bool TLN_CreateWindowThread (const char* overlay, int flags);
-func CreateWindowThread (overlay CString, flags int) bool {
-	return convertBool(C.TLN_CreateWindowThread (overlay, CInt(flags)))
+func CreateWindowThread (overlay string, flags int) bool {
+	return convertBool(C.TLN_CreateWindowThread (C.CString(overlay), CInt(flags)))
 }
 
 // TLNAPI void TLN_SetWindowTitle (const char* title);
-func SetWindowTitle (title CString) {
-	C.TLN_SetWindowTitle (title)
+func SetWindowTitle (title string) {
+	C.TLN_SetWindowTitle (C.CString(title))
 }
 
 // TLNAPI bool TLN_ProcessWindow (void);
@@ -713,8 +716,8 @@ func CreateSpriteset(bitmap Bitmap, data *SpriteData, num_entries int) Spriteset
 }
 
 // TLNAPI TLN_Spriteset TLN_LoadSpriteset (const char* name);
-func LoadSpriteset(name CString) Spriteset {
-	return C.TLN_LoadSpriteset(name)
+func LoadSpriteset(name string) Spriteset {
+	return C.TLN_LoadSpriteset(C.CString(name))
 }
 
 // TLNAPI TLN_Spriteset TLN_CloneSpriteset (TLN_Spriteset src);
@@ -733,8 +736,8 @@ func GetSpritesetPalette(spriteset Spriteset) Palette {
 }
 
 // TLNAPI int TLN_FindSpritesetSprite (TLN_Spriteset spriteset, const char* name);
-func FindSpritesetSprite(spriteset Spriteset, name CString) int {
-	return int(C.TLN_FindSpritesetSprite(spriteset, name))
+func FindSpritesetSprite(spriteset Spriteset, name string) int {
+	return int(C.TLN_FindSpritesetSprite(spriteset, C.CString(name)))
 }
 
 // TLNAPI bool TLN_SetSpritesetData (TLN_Spriteset spriteset, int entry, TLN_SpriteData* data, void* pixels, int pitch);
@@ -760,8 +763,8 @@ func CreateImageTileset(numtiles int, images *TileImage) Tileset {
 }
 
 // TLNAPI TLN_Tileset TLN_LoadTileset (const char* filename);
-func LoadTileset(filename CString) Tileset {
-	return C.TLN_LoadTileset(filename)
+func LoadTileset(filename string) Tileset {
+	return C.TLN_LoadTileset(C.CString(filename))
 }
 
 // TLNAPI TLN_Tileset TLN_CloneTileset (TLN_Tileset src);
@@ -813,8 +816,11 @@ func CreateTilemap(rows, cols int, tiles Tile, bgcolor uint32, tileset Tileset) 
 }
 
 // TLNAPI TLN_Tilemap TLN_LoadTilemap (const char* filename, const char* layername);
-func LoadTilemap(filename CString, layername CString) Tilemap {
-	return C.TLN_LoadTilemap(filename, layername)
+func LoadTilemap(filename string, layername string) Tilemap {(C.CString(filename))
+	if(layername == "") {
+		return C.TLN_LoadTilemap(C.CString(filename), nil)
+	}
+	return C.TLN_LoadTilemap(C.CString(filename), C.CString(layername))
 }
 
 // TLNAPI TLN_Tilemap TLN_CloneTilemap (TLN_Tilemap src);
@@ -886,8 +892,8 @@ func CreatePalette(entries int) Palette {
 }
 
 // TLNAPI TLN_Palette TLN_LoadPalette (const char* filename);
-func LoadPalette(filename CString) Palette {
-	return C.TLN_LoadPalette(filename)
+func LoadPalette(filename string) Palette {
+	return C.TLN_LoadPalette(C.CString(filename))
 }
 
 // TLNAPI TLN_Palette TLN_ClonePalette (TLN_Palette src);
@@ -939,8 +945,8 @@ func CreateBitmap(width, height, bpp int) Bitmap {
 }
 
 // TLNAPI TLN_Bitmap TLN_LoadBitmap (const char* filename);
-func LoadBitmap(filename CString) Bitmap {
-	return C.TLN_LoadBitmap(filename)
+func LoadBitmap(filename string) Bitmap {
+	return C.TLN_LoadBitmap(C.CString(filename))
 }
 
 // TLNAPI TLN_Bitmap TLN_CloneBitmap (TLN_Bitmap src);
@@ -1002,8 +1008,11 @@ func AddTileObjectToList(list ObjectList, id, gid, flags uint16, x, y int) bool 
 }
 
 // TLNAPI TLN_ObjectList TLN_LoadObjectList(const char* filename, const char* layername);
-func LoadObjectList(filename CString, layername CString) ObjectList {
-	return C.TLN_LoadObjectList(filename, layername)
+func LoadObjectList(filename string, layername string) ObjectList {
+	if(layername == "") {
+		return C.TLN_LoadObjectList(C.CString(filename), nil)
+	}
+	return C.TLN_LoadObjectList(C.CString(filename), C.CString(layername))
 }
 
 // TLNAPI TLN_ObjectList TLN_CloneObjectList(TLN_ObjectList src);
@@ -1372,18 +1381,18 @@ func GetSpritePalette(nsprite int) Palette {
 
 // {
 // TLNAPI TLN_Sequence TLN_CreateSequence (const char* name, int target, int num_frames, TLN_SequenceFrame* frames);
-func CreateSequence(name CString, target, num_frames int,  frames *SequenceFrame) Sequence {
-	return C.TLN_CreateSequence(name, CInt(target), CInt(num_frames), frames)
+func CreateSequence(name string, target, num_frames int,  frames *SequenceFrame) Sequence {
+	return C.TLN_CreateSequence(C.CString(name), CInt(target), CInt(num_frames), frames)
 }
 
 // TLNAPI TLN_Sequence TLN_CreateCycle (const char* name, int num_strips, TLN_ColorStrip* strips);
-func CreateCycle(name CString, num_strips int, strips *ColorStrip) Sequence {
-	return C.TLN_CreateCycle(name, CInt(num_strips), strips)
+func CreateCycle(name string, num_strips int, strips *ColorStrip) Sequence {
+	return C.TLN_CreateCycle(C.CString(name), CInt(num_strips), strips)
 }
 
 // TLNAPI TLN_Sequence TLN_CreateSpriteSequence(const char* name, TLN_Spriteset spriteset, const char* basename, int delay);
-func CreateSpriteSequence(name CString, spriteset Spriteset, basename CString, delay int) Sequence {
-	return C.TLN_CreateSpriteSequence(name, spriteset, basename, CInt(delay))
+func CreateSpriteSequence(name string, spriteset Spriteset, basename string, delay int) Sequence {
+	return C.TLN_CreateSpriteSequence(C.CString(name), spriteset, C.CString(basename), CInt(delay))
 }
 
 // TLNAPI TLN_Sequence TLN_CloneSequence (TLN_Sequence src);
@@ -1410,8 +1419,8 @@ func CreateSequencePack() SequencePack {
 }
 
 // TLNAPI TLN_SequencePack TLN_LoadSequencePack (const char* filename);
-func LoadSequencePack(filename CString) SequencePack {
-	return C.TLN_LoadSequencePack(filename)
+func LoadSequencePack(filename string) SequencePack {
+	return C.TLN_LoadSequencePack(C.CString(filename))
 }
 
 // TLNAPI TLN_Sequence TLN_GetSequence (TLN_SequencePack sp, int index);
@@ -1420,8 +1429,8 @@ func GetSequence(sp SequencePack, index int) Sequence {
 }
 
 // TLNAPI TLN_Sequence TLN_FindSequence (TLN_SequencePack sp, const char* name);
-func FindSequence(sp SequencePack, name CString) Sequence {
-	return C.TLN_FindSequence(sp, name)
+func FindSequence(sp SequencePack, name string) Sequence {
+	return C.TLN_FindSequence(sp, C.CString(name))
 }
 
 // TLNAPI int TLN_GetSequencePackCount (TLN_SequencePack sp);
@@ -1480,8 +1489,8 @@ func DisablePaletteAnimation(index int) bool {
 
 // {
 // TLNAPI bool TLN_LoadWorld(const char* tmxfile, int first_layer);
-func LoadWorld(tmxfile CString, first_layer int) bool {
-	return convertBool(C.TLN_LoadWorld(tmxfile, CInt(first_layer)))
+func LoadWorld(tmxfile string, first_layer int) bool {
+	return convertBool(C.TLN_LoadWorld(C.CString(tmxfile), CInt(first_layer)))
 }
 
 // TLNAPI void TLN_SetWorldPosition(int x, int y);
