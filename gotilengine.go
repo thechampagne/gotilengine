@@ -19,8 +19,8 @@ type (
 )
 
 const (
-	CTrue  = C.true
-	CFalse = C.false
+	CFalse = 0
+	CTrue  = 1
 )
 
 const (
