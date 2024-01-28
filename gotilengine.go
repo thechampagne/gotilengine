@@ -1,6 +1,7 @@
 package gotilengine
 
 /*
+
 #cgo CFLAGS: -I${SRCDIR}
 #cgo LDFLAGS: -lTilengine
 #include "Tilengine.h"
