@@ -83,11 +83,11 @@ const (
 // type Affine = C.TLN_Affine
 
 type Affine struct {
-	angle float32
-	dx    float32
-	dy    float32
-	sx    float32
-	sy    float32
+	Angle float32
+	Dx    float32
+	Dy    float32
+	Sx    float32
+	Sy    float32
 }
 
 // typedef union Tile
@@ -184,15 +184,15 @@ type SpriteInfo = C.TLN_SpriteInfo
 type TileInfo = C.TLN_TileInfo
 
 type TileInfoStruct struct {
-	index   uint16
-	flags   uint16
-	row     int32
-	col     int32
-	xoffset int32
-	yoffset int32
-	color   byte
-	ttype   byte
-	empty   byte
+	Index   uint16
+	Flags   uint16
+	Row     int32
+	Col     int32
+	Xoffset int32
+	Yoffset int32
+	Color   byte
+	Type    byte
+	Empty   byte
 }
 
 // typedef struct
