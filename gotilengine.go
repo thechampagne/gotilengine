@@ -1,10 +1,10 @@
 package gotilengine
 
 /*
-
 #cgo CFLAGS: -I${SRCDIR}
 #cgo LDFLAGS: -lTilengine
 #include "Tilengine.h"
+void CrasterCallback(int line);
 */
 import "C"
 import (
@@ -481,10 +481,10 @@ type RasterCallback = func(line int32)
 
 var myRastercallback RasterCallback
 
-// export cRasterCallback
-func cRasterCallback(line int32) {
+//export CrasterCallback
+func CrasterCallback(line CInt) {
 	if myRastercallback != nil {
-		myRastercallback(line)
+		myRastercallback(int32(line))
 	}
 }
 
@@ -492,7 +492,7 @@ func cRasterCallback(line int32) {
 // TLNAPI TLN_Engine TLN_Init (int hres, int vres, int numlayers, int numsprites, int numanimations);
 func Init(hres int, vres int, numlayers int, numsprites int, numanimations int) Engine {
 	a := C.TLN_Init(CInt(hres), CInt(vres), CInt(numlayers), CInt(numsprites), CInt(numanimations))
-	C.TLN_SetRasterCallback(C.TLN_VideoCallback(C.cRasterCallback))
+	setRasterCallback(VideoCallback(C.CrasterCallback))
 	return a
 }
 
@@ -836,8 +836,12 @@ func FindSpritesetSprite(spriteset Spriteset, name string) int {
 }
 
 // TLNAPI bool TLN_SetSpritesetData (TLN_Spriteset spriteset, int entry, TLN_SpriteData* data, void* pixels, int pitch);
-func SetSpritesetData(spriteset Spriteset, entry int, data *SpriteData, pixels unsafe.Pointer, pitch int) bool {
+func setSpritesetData(spriteset Spriteset, entry int, data *C.TLN_SpriteData, pixels unsafe.Pointer, pitch int) bool {
 	return convertBool(C.TLN_SetSpritesetData(spriteset, CInt(entry), data, pixels, CInt(pitch)))
+}
+
+func SetSpritesetData(spriteset Spriteset, entry int, data *SpriteData, pixels unsafe.Pointer, pitch int) bool {
+	return convertBool(C.TLN_SetSpritesetData(spriteset, CInt(entry), (*C.TLN_SpriteData)(unsafe.Pointer(data)), pixels, CInt(pitch)))
 }
 
 // TLNAPI bool TLN_DeleteSpriteset (TLN_Spriteset Spriteset);
