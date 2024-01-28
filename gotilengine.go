@@ -125,7 +125,12 @@ type TileStruct = C.Tile
 // }
 // TLN_SequenceFrame;
 
-type SequenceFrame = C.TLN_SequenceFrame
+// type SequenceFrame = C.TLN_SequenceFrame
+
+type SequenceFrame struct {
+	Index int32
+	Delay int32
+}
 
 // typedef struct
 // {
@@ -136,7 +141,14 @@ type SequenceFrame = C.TLN_SequenceFrame
 // }
 // TLN_ColorStrip;
 
-type ColorStrip = C.TLN_ColorStrip
+// type ColorStrip = C.TLN_ColorStrip
+
+type ColorStrip struct {
+	Delay int32
+	First uint8
+	Count uint8
+	Dir   uint8
+}
 
 // typedef struct
 // {
@@ -145,7 +157,12 @@ type ColorStrip = C.TLN_ColorStrip
 // }
 // TLN_SequenceInfo;
 
-type SequenceInfo = C.TLN_SequenceInfo
+// type SequenceInfo = C.TLN_SequenceInfo
+
+type SequenceInfo struct {
+	name      [32]uint8
+	NumFrames int32
+}
 
 // typedef struct
 // {
@@ -157,7 +174,15 @@ type SequenceInfo = C.TLN_SequenceInfo
 // }
 // TLN_SpriteData;
 
-type SpriteData = C.TLN_SpriteData
+// type SpriteData = C.TLN_SpriteData
+
+type SpriteData struct {
+	name [64]uint8
+	X    int32
+	Y    int32
+	W    int32
+	H    int32
+}
 
 // typedef struct
 // {
@@ -166,7 +191,12 @@ type SpriteData = C.TLN_SpriteData
 // }
 // TLN_SpriteInfo;
 
-type SpriteInfo = C.TLN_SpriteInfo
+// type SpriteInfo = C.TLN_SpriteInfo
+
+type SpriteInfo struct {
+	W int32
+	H int32
+}
 
 // typedef struct
 // {
@@ -182,18 +212,18 @@ type SpriteInfo = C.TLN_SpriteInfo
 // }
 // TLN_TileInfo;
 
-type TileInfo = C.TLN_TileInfo
+// type TileInfo = C.TLN_TileInfo
 
-type TileInfoStruct struct {
+type TileInfo struct {
 	Index   uint16
 	Flags   uint16
 	Row     int32
 	Col     int32
 	Xoffset int32
 	Yoffset int32
-	Color   byte
-	Type    byte
-	Empty   byte
+	Color   uint8
+	Type    uint8
+	Empty   uint8
 }
 
 // typedef struct
@@ -211,7 +241,20 @@ type TileInfoStruct struct {
 // }
 // TLN_ObjectInfo;
 
-type ObjectInfo = C.TLN_ObjectInfo
+// type ObjectInfo = C.TLN_ObjectInfo
+
+type ObjectInfo struct {
+	Id      uint16
+	Gid     uint16
+	Flags   uint16
+	X       int32
+	Y       int32
+	Width   int32
+	Height  int32
+	Type    uint8
+	Visible uint8
+	name    [64]uint8
+}
 
 // typedef struct
 // {
@@ -220,7 +263,12 @@ type ObjectInfo = C.TLN_ObjectInfo
 // }
 // TLN_TileAttributes;
 
-type TileAttributes = C.TLN_TileAttributes
+// type TileAttributes = C.TLN_TileAttributes
+
+type TileAttributes struct {
+	Type     uint8
+	Priority uint8
+}
 
 const (
 	TLN_OVERLAY_NONE       = 0
@@ -290,7 +338,13 @@ type ObjectList = C.TLN_ObjectList
 // }
 // TLN_TileImage;
 
-type TileImage = C.TLN_TileImage
+// type TileImage = C.TLN_TileImage
+
+type TileImage struct {
+	Bitmap Bitmap
+	Id     uint16
+	Type   uint8
+}
 
 // typedef struct
 // {
@@ -307,7 +361,20 @@ type TileImage = C.TLN_TileImage
 // }
 // TLN_SpriteState;
 
-type SpriteState = C.TLN_SpriteState
+// type SpriteState = C.TLN_SpriteState
+
+type SpriteState struct {
+	X         int32
+	Y         int32
+	W         int32
+	H         int32
+	Flags     uint32
+	Palette   Palette
+	SpriteSet Spriteset
+	Index     int32
+	Enabled   uint8
+	Collision uint8
+}
 
 // typedef union SDL_Event SDL_Event;
 type SDL_Event = C.SDL_Event
@@ -410,10 +477,23 @@ func convertBool(a CBool) bool {
 	return a == CTrue
 }
 
+type RasterCallback = func(line int32)
+
+var myRastercallback RasterCallback
+
+// export cRasterCallback
+func cRasterCallback(line int32) {
+	if myRastercallback != nil {
+		myRastercallback(line)
+	}
+}
+
 // {
 // TLNAPI TLN_Engine TLN_Init (int hres, int vres, int numlayers, int numsprites, int numanimations);
 func Init(hres int, vres int, numlayers int, numsprites int, numanimations int) Engine {
-	return C.TLN_Init(CInt(hres), CInt(vres), CInt(numlayers), CInt(numsprites), CInt(numanimations))
+	a := C.TLN_Init(CInt(hres), CInt(vres), CInt(numlayers), CInt(numsprites), CInt(numanimations))
+	C.TLN_SetRasterCallback(C.TLN_VideoCallback(C.cRasterCallback))
+	return a
 }
 
 // TLNAPI void TLN_Deinit (void);
@@ -514,8 +594,12 @@ func SetGlobalPalette(index int, palette Palette) bool {
 }
 
 // TLNAPI void TLN_SetRasterCallback (TLN_VideoCallback);
-func SetRasterCallback(cb VideoCallback) {
+func setRasterCallback(cb VideoCallback) {
 	C.TLN_SetRasterCallback(cb)
+}
+
+func SetRasterCallback(cb RasterCallback) {
+	myRastercallback = cb
 }
 
 // TLNAPI void TLN_SetFrameCallback (TLN_VideoCallback);
@@ -714,8 +798,12 @@ func GetWindowHeight() int {
 
 // {
 // TLNAPI TLN_Spriteset TLN_CreateSpriteset (TLN_Bitmap bitmap, TLN_SpriteData* data, int num_entries);
-func CreateSpriteset(bitmap Bitmap, data *SpriteData, num_entries int) Spriteset {
+func createSpriteset(bitmap Bitmap, data *C.TLN_SpriteData, num_entries int) Spriteset {
 	return C.TLN_CreateSpriteset(bitmap, data, CInt(num_entries))
+}
+
+func CreateSpriteset(bitmap Bitmap, data *SpriteData, num_entries int) Spriteset {
+	return C.TLN_CreateSpriteset(bitmap, (*C.TLN_SpriteData)(unsafe.Pointer(data)), CInt(num_entries))
 }
 
 // TLNAPI TLN_Spriteset TLN_LoadSpriteset (const char* name);
@@ -729,8 +817,12 @@ func CloneSpriteset(src Spriteset) Spriteset {
 }
 
 // TLNAPI bool TLN_GetSpriteInfo (TLN_Spriteset spriteset, int entry, TLN_SpriteInfo* info);
-func GetSpriteInfo(spriteset Spriteset, entry int, info *SpriteInfo) bool {
+func getSpriteInfo(spriteset Spriteset, entry int, info *C.TLN_SpriteInfo) bool {
 	return convertBool(C.TLN_GetSpriteInfo(spriteset, CInt(entry), info))
+}
+
+func GetSpriteInfo(spriteset Spriteset, entry int, info *SpriteInfo) bool {
+	return convertBool(C.TLN_GetSpriteInfo(spriteset, CInt(entry), (*C.TLN_SpriteInfo)(unsafe.Pointer(info))))
 }
 
 // TLNAPI TLN_Palette TLN_GetSpritesetPalette (TLN_Spriteset spriteset);
@@ -757,13 +849,21 @@ func DeleteSpriteset(spriteset Spriteset) bool {
 
 // {
 // TLNAPI TLN_Tileset TLN_CreateTileset (int numtiles, int width, int height, TLN_Palette palette, TLN_SequencePack sp, TLN_TileAttributes* attributes);
-func TLN_CreateTileset(numtiles CInt, width CInt, height CInt, palette Palette, sp SequencePack, attributes *TileAttributes) Tileset {
+func tLN_CreateTileset(numtiles CInt, width CInt, height CInt, palette Palette, sp SequencePack, attributes *C.TLN_TileAttributes) Tileset {
 	return C.TLN_CreateTileset(numtiles, width, height, palette, sp, attributes)
 }
 
+func CreateTileset(numtiles, width, height int32, palette Palette, sp SequencePack, attributes *TileAttributes) Tileset {
+	return tLN_CreateTileset(CInt(numtiles), CInt(width), CInt(height), palette, sp, (*C.TLN_TileAttributes)(unsafe.Pointer(attributes)))
+}
+
 // TLNAPI TLN_Tileset TLN_CreateImageTileset(int numtiles, TLN_TileImage* images);
-func CreateImageTileset(numtiles int, images *TileImage) Tileset {
+func createImageTileset(numtiles int, images *C.TLN_TileImage) Tileset {
 	return C.TLN_CreateImageTileset(CInt(numtiles), images)
+}
+
+func CreateImageTileset(numtiles int, images *TileImage) Tileset {
+	return createImageTileset(numtiles, (*C.TLN_TileImage)(unsafe.Pointer(images)))
 }
 
 // TLNAPI TLN_Tileset TLN_LoadTileset (const char* filename);
@@ -1031,8 +1131,12 @@ func GetListNumObjects(list ObjectList) int {
 }
 
 // TLNAPI bool TLN_GetListObject(TLN_ObjectList list, TLN_ObjectInfo* info);
-func GetListObject(list ObjectList, info *ObjectInfo) bool {
+func getListObject(list ObjectList, info *C.TLN_ObjectInfo) bool {
 	return convertBool(C.TLN_GetListObject(list, info))
+}
+
+func GetListObject(list ObjectList, info *ObjectInfo) bool {
+	return convertBool(C.TLN_GetListObject(list, (*C.TLN_ObjectInfo)(unsafe.Pointer(info))))
 }
 
 // TLNAPI bool TLN_DeleteObjectList(TLN_ObjectList list);
@@ -1200,12 +1304,12 @@ func GetLayerObjects(nlayer int) ObjectList {
 }
 
 // TLNAPI bool TLN_GetLayerTile (int nlayer, int x, int y, TLN_TileInfo* info);
-func getLayerTile(nlayer, x, y int, info *TileInfo) bool {
+func getLayerTile(nlayer, x, y int, info *C.TLN_TileInfo) bool {
 	return convertBool(C.TLN_GetLayerTile(CInt(nlayer), CInt(x), CInt(y), info))
 }
 
-func GetLayerTile(nlayer, x, y int, info *TileInfoStruct) bool {
-	return getLayerTile(nlayer, x, y, (*TileInfo)(unsafe.Pointer(info)))
+func GetLayerTile(nlayer, x, y int, info *TileInfo) bool {
+	return getLayerTile(nlayer, x, y, (*C.TLN_TileInfo)(unsafe.Pointer(info)))
 }
 
 // TLNAPI int TLN_GetLayerWidth (int nlayer);
@@ -1335,8 +1439,12 @@ func GetSpriteCollision(nsprite int) bool {
 }
 
 // TLNAPI bool TLN_GetSpriteState(int nsprite, TLN_SpriteState* state);
-func GetSpriteState(nsprite int, state *SpriteState) bool {
+func getSpriteState(nsprite int, state *C.TLN_SpriteState) bool {
 	return convertBool(C.TLN_GetSpriteState(CInt(nsprite), state))
+}
+
+func GetSpriteState(nsprite int, state *SpriteState) bool {
+	return convertBool(C.TLN_GetSpriteState(CInt(nsprite), (*C.TLN_SpriteState)(unsafe.Pointer(state))))
 }
 
 // TLNAPI bool TLN_SetFirstSprite(int nsprite);
@@ -1402,13 +1510,21 @@ func GetSpritePalette(nsprite int) Palette {
 
 // {
 // TLNAPI TLN_Sequence TLN_CreateSequence (const char* name, int target, int num_frames, TLN_SequenceFrame* frames);
-func CreateSequence(name string, target, num_frames int, frames *SequenceFrame) Sequence {
+func createSequence(name string, target, num_frames int, frames *C.TLN_SequenceFrame) Sequence {
 	return C.TLN_CreateSequence(C.CString(name), CInt(target), CInt(num_frames), frames)
 }
 
+func CreateSequence(name string, target, num_frames int, frames *SequenceFrame) Sequence {
+	return createSequence(name, target, num_frames, (*C.TLN_SequenceFrame)(unsafe.Pointer(frames)))
+}
+
 // TLNAPI TLN_Sequence TLN_CreateCycle (const char* name, int num_strips, TLN_ColorStrip* strips);
-func CreateCycle(name string, num_strips int, strips *ColorStrip) Sequence {
+func createCycle(name string, num_strips int, strips *C.TLN_ColorStrip) Sequence {
 	return C.TLN_CreateCycle(C.CString(name), CInt(num_strips), strips)
+}
+
+func CreateCycle(name string, num_strips int, strips *ColorStrip) Sequence {
+	return createCycle(name, num_strips, (*C.TLN_ColorStrip)(unsafe.Pointer(strips)))
 }
 
 // TLNAPI TLN_Sequence TLN_CreateSpriteSequence(const char* name, TLN_Spriteset spriteset, const char* basename, int delay);
@@ -1422,8 +1538,12 @@ func CloneSequence(src Sequence) Sequence {
 }
 
 // TLNAPI bool TLN_GetSequenceInfo (TLN_Sequence sequence, TLN_SequenceInfo* info);
-func GetSequenceInfo(sequence Sequence, info *SequenceInfo) bool {
+func getSequenceInfo(sequence Sequence, info *C.TLN_SequenceInfo) bool {
 	return convertBool(C.TLN_GetSequenceInfo(sequence, info))
+}
+
+func GetSequenceInfo(sequence Sequence, info *SequenceInfo) bool {
+	return convertBool(C.TLN_GetSequenceInfo(sequence, (*C.TLN_SequenceInfo)(unsafe.Pointer(info))))
 }
 
 // TLNAPI bool TLN_DeleteSequence (TLN_Sequence sequence);
