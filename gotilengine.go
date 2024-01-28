@@ -80,9 +80,9 @@ const (
 // }
 // TLN_Affine;
 
-type Affine = C.TLN_Affine
+// type Affine = C.TLN_Affine
 
-type AffineStruct struct {
+type Affine struct {
 	angle float32
 	dx    float32
 	dy    float32
@@ -244,9 +244,9 @@ const (
 // }
 // TLN_PixelMap;
 
-type PixelMap = C.TLN_PixelMap
+// type PixelMap = C.TLN_PixelMap
 
-type PixelMapStruct struct {
+type PixelMap struct {
 	dx int16
 	dy int16
 }
@@ -1073,12 +1073,12 @@ func SetLayerScaling(nlayer int, xfactor float32, yfactor float32) bool {
 }
 
 // TLNAPI bool TLN_SetLayerAffineTransform (int nlayer, TLN_Affine *affine);
-func setLayerAffineTransform(nlayer int, affine *Affine) bool {
+func setLayerAffineTransform(nlayer int, affine *C.TLN_Affine) bool {
 	return convertBool(C.TLN_SetLayerAffineTransform(CInt(nlayer), affine))
 }
 
-func SetLayerAffineTransform(nlayer int, affine *AffineStruct) bool {
-	return setLayerAffineTransform(nlayer, (*Affine)(unsafe.Pointer(affine)))
+func SetLayerAffineTransform(nlayer int, affine *Affine) bool {
+	return setLayerAffineTransform(nlayer, (*C.TLN_Affine)(unsafe.Pointer(affine)))
 }
 
 // TLNAPI bool TLN_SetLayerTransform (int layer, float angle, float dx, float dy, float sx, float sy);
@@ -1087,12 +1087,12 @@ func SetLayerTransform(layer int, angle, dx, dy, sx, sy float32) bool {
 }
 
 // TLNAPI bool TLN_SetLayerPixelMapping (int nlayer, TLN_PixelMap* table);
-func setLayerPixelMapping(nlayer int, table *PixelMap) bool {
+func setLayerPixelMapping(nlayer int, table *C.TLN_PixelMap) bool {
 	return convertBool(C.TLN_SetLayerPixelMapping(CInt(nlayer), table))
 }
 
-func SetLayerPixelMapping(nlayer int, table []PixelMapStruct) bool {
-	return setLayerPixelMapping(nlayer, (*PixelMap)(unsafe.Pointer(&table[0])))
+func SetLayerPixelMapping(nlayer int, table []PixelMap) bool {
+	return setLayerPixelMapping(nlayer, (*C.TLN_PixelMap)(unsafe.Pointer(&table[0])))
 }
 
 // TLNAPI bool TLN_SetLayerBlendMode (int nlayer, TLN_Blend mode, uint8_t factor);
