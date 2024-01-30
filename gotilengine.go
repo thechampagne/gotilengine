@@ -4,10 +4,11 @@ package gotilengine
 #cgo CFLAGS: -I${SRCDIR}
 #cgo LDFLAGS: -lTilengine
 #include "Tilengine.h"
-void CrasterCallback(int line);
+void cRasterCallback(int line);
 */
 import "C"
 import (
+	"runtime"
 	"unsafe"
 	// "runtime/cgo"
 )
@@ -116,7 +117,7 @@ type Affine struct {
 // }
 // Tile;
 
-type TileStruct = C.Tile
+type Tile uint32
 
 // typedef struct
 // {
@@ -301,34 +302,72 @@ type PixelMap struct {
 }
 
 // typedef struct Engine*		 TLN_Engine;
-type Engine = C.TLN_Engine
+type Engine struct {
+	data C.TLN_Engine
+}
+
+// type Engine = C.TLN_Engine
 
 // typedef union  Tile*		 TLN_Tile;
-type Tile = C.TLN_Tile
+type TilePtr = *Tile
+
+// type Tile = C.TLN_Tile
 
 // typedef struct Tileset*		 TLN_Tileset;
-type Tileset = C.TLN_Tileset
+type Tileset struct {
+	data C.TLN_Tileset
+}
+
+// type Tileset = C.TLN_Tileset
 
 // typedef struct Tilemap*		 TLN_Tilemap;
-type Tilemap = C.TLN_Tilemap
+type Tilemap struct {
+	data C.TLN_Tilemap
+}
+
+// type Tilemap = C.TLN_Tilemap
 
 // typedef struct Palette*		 TLN_Palette;
-type Palette = C.TLN_Palette
+type Palette struct {
+	data C.TLN_Palette
+}
+
+// type Palette = C.TLN_Palette
 
 // typedef struct Spriteset*	 TLN_Spriteset;
-type Spriteset = C.TLN_Spriteset
+type Spriteset struct {
+	data C.TLN_Spriteset
+}
+
+// type Spriteset = C.TLN_Spriteset
 
 // typedef struct Sequence*	 TLN_Sequence;
-type Sequence = C.TLN_Sequence
+type Sequence struct {
+	data C.TLN_Sequence
+}
+
+// type Sequence = C.TLN_Sequence
 
 // typedef struct SequencePack* TLN_SequencePack;
-type SequencePack = C.TLN_SequencePack
+type SequencePack struct {
+	data C.TLN_SequencePack
+}
+
+// type SequencePack = C.TLN_SequencePack
 
 // typedef struct Bitmap*		 TLN_Bitmap;
-type Bitmap = C.TLN_Bitmap
+type Bitmap struct {
+	data C.TLN_Bitmap
+}
+
+// type Bitmap = C.TLN_Bitmap
 
 // typedef struct ObjectList*	 TLN_ObjectList;
-type ObjectList = C.TLN_ObjectList
+type ObjectList struct {
+	data C.TLN_ObjectList
+}
+
+// type ObjectList = C.TLN_ObjectList
 
 // typedef struct
 // {
@@ -437,6 +476,7 @@ const (
 	CWF_S4         = (4 << 2)
 	CWF_S5         = (5 << 2)
 	CWF_NEAREST    = (1 << 6)
+	CWF_NOVSYNC    = (1 << 7)
 )
 
 type Error = C.TLN_Error
@@ -473,6 +513,17 @@ const (
 	LOG_VERBOSE
 )
 
+type Layer int
+type Sprite int
+
+func boolToUint8(v bool) uint8 {
+	var r uint8
+	if v {
+		r = 1
+	}
+	return r
+}
+
 func convertBool(a CBool) bool {
 	return a == CTrue
 }
@@ -481,8 +532,8 @@ type RasterCallback = func(line int32)
 
 var myRastercallback RasterCallback
 
-//export CrasterCallback
-func CrasterCallback(line CInt) {
+//export cRasterCallback
+func cRasterCallback(line CInt) {
 	if myRastercallback != nil {
 		myRastercallback(int32(line))
 	}
@@ -491,9 +542,10 @@ func CrasterCallback(line CInt) {
 // {
 // TLNAPI TLN_Engine TLN_Init (int hres, int vres, int numlayers, int numsprites, int numanimations);
 func Init(hres int, vres int, numlayers int, numsprites int, numanimations int) Engine {
+	runtime.LockOSThread()
 	a := C.TLN_Init(CInt(hres), CInt(vres), CInt(numlayers), CInt(numsprites), CInt(numanimations))
-	setRasterCallback(VideoCallback(C.CrasterCallback))
-	return a
+
+	return Engine{data: a}
 }
 
 // TLNAPI void TLN_Deinit (void);
@@ -502,26 +554,38 @@ func Deinit() {
 }
 
 // TLNAPI bool TLN_DeleteContext (TLN_Engine context);
-func DeleteContext(context Engine) bool {
-	a := C.TLN_DeleteContext(context)
-	if a == CTrue {
-		return true
+func (context *Engine) DeleteContext() bool {
+	if context.data == nil {
+		return false
 	}
-	return false
+	a := convertBool(C.TLN_DeleteContext(context.data))
+	if a {
+		context.data = nil
+	}
+	return a
 }
 
 // TLNAPI bool TLN_SetContext(TLN_Engine context);
-func SetContext(context Engine) bool {
-	a := C.TLN_SetContext(context)
-	if a == CTrue {
-		return true
+func (context *Engine) SetContext() bool {
+	if context.data == nil {
+		return false
 	}
-	return false
+	return convertBool(C.TLN_SetContext(context.data))
 }
 
 // TLNAPI TLN_Engine TLN_GetContext(void);
 func GetContext() Engine {
-	return C.TLN_GetContext()
+	return Engine{data: C.TLN_GetContext()}
+}
+
+// TLNAPI void TLN_SetTargetFps(int fps);
+func SetTargetFps(fps int) {
+	C.TLN_SetTargetFps(CInt(fps))
+}
+
+// TLNAPI int TLN_GetTargetFps(void);
+func GetTargetFps() int {
+	return int(C.TLN_GetTargetFps())
 }
 
 // TLNAPI int TLN_GetWidth (void);
@@ -565,12 +629,8 @@ func SetBGColor(r uint8, g uint8, b uint8) {
 }
 
 // TLNAPI bool TLN_SetBGColorFromTilemap (TLN_Tilemap tilemap);
-func SetBGColorFromTilemap(tilemap Tilemap) bool {
-	a := C.TLN_SetBGColorFromTilemap(tilemap)
-	if a == CFalse {
-		return false
-	}
-	return true
+func (tilemap Tilemap) SetBGColorFromTilemap() bool {
+	return convertBool(C.TLN_SetBGColorFromTilemap(tilemap.data))
 }
 
 // TLNAPI void TLN_DisableBGColor (void);
@@ -579,18 +639,18 @@ func DisableBGColor() {
 }
 
 // TLNAPI bool TLN_SetBGBitmap (TLN_Bitmap bitmap);
-func SetBGBitmap(bitmap Bitmap) bool {
-	return convertBool(C.TLN_SetBGBitmap(bitmap))
+func (bitmap Bitmap) SetBGBitmap() bool {
+	return convertBool(C.TLN_SetBGBitmap(bitmap.data))
 }
 
 // TLNAPI bool TLN_SetBGPalette (TLN_Palette palette);
 func SetBGPalette(palette Palette) bool {
-	return convertBool(C.TLN_SetBGPalette(palette))
+	return convertBool(C.TLN_SetBGPalette(palette.data))
 }
 
 // TLNAPI bool TLN_SetGlobalPalette(int index, TLN_Palette palette);
 func SetGlobalPalette(index int, palette Palette) bool {
-	return convertBool(C.TLN_SetGlobalPalette(CInt(index), palette))
+	return convertBool(C.TLN_SetGlobalPalette(CInt(index), palette.data))
 }
 
 // TLNAPI void TLN_SetRasterCallback (TLN_VideoCallback);
@@ -644,7 +704,7 @@ func CloseResourcePack() {
 
 // TLNAPI TLN_Palette TLN_GetGlobalPalette(int index);
 func GetGlobalPalette(index int) Palette {
-	return C.TLN_GetGlobalPalette(CInt(index))
+	return Palette{data: C.TLN_GetGlobalPalette(CInt(index))}
 }
 
 // }
@@ -670,12 +730,16 @@ func GetErrorString(error Error) string {
 // , {
 // TLNAPI bool TLN_CreateWindow (const char* overlay, int flags);
 func CreateWindow(overlay string, flags int) bool {
-	return convertBool(C.TLN_CreateWindow(C.CString(overlay), CInt(flags)))
+	a := convertBool(C.TLN_CreateWindow(C.CString(overlay), CInt(flags)))
+	setRasterCallback(VideoCallback(C.cRasterCallback))
+	return a
 }
 
 // TLNAPI bool TLN_CreateWindowThread (const char* overlay, int flags);
 func CreateWindowThread(overlay string, flags int) bool {
-	return convertBool(C.TLN_CreateWindowThread(C.CString(overlay), CInt(flags)))
+	a := convertBool(C.TLN_CreateWindowThread(C.CString(overlay), CInt(flags)))
+	setRasterCallback(VideoCallback(C.cRasterCallback))
+	return a
 }
 
 // TLNAPI void TLN_SetWindowTitle (const char* title);
@@ -700,11 +764,11 @@ func GetInput(id Input) bool {
 
 // TLNAPI void TLN_EnableInput (TLN_Player player, bool enable);
 func EnableInput(player Player, enable bool) {
-	b := 0
-	if enable {
-		b = 1
-	}
-	C.TLN_EnableInput(player, CBool(b))
+	// b := 0
+	// if enable {
+	// 	b = 1
+	// }
+	C.TLN_EnableInput(player, CBool(boolToUint8(enable)))
 }
 
 // TLNAPI void TLN_AssignInputJoystick (TLN_Player player, int index);
@@ -739,29 +803,29 @@ func DeleteWindow() {
 
 // TLNAPI void TLN_EnableBlur (bool mode);
 func EnableBlur(mode bool) {
-	b := 0
-	if mode {
-		b = 1
-	}
-	C.TLN_EnableBlur(CBool(b))
+	// b := 0
+	// if mode {
+	// 	b = 1
+	// }
+	C.TLN_EnableBlur(CBool(boolToUint8(mode)))
 }
 
 // TLNAPI void TLN_ConfigCRTEffect(TLN_CRT type, bool blur);
 func ConfigCRTEffect(_type CRT, blur bool) {
-	b := 0
-	if blur {
-		b = 1
-	}
-	C.TLN_ConfigCRTEffect(_type, CBool(b))
+	// b := 0
+	// if blur {
+	// 	b = 1
+	// }
+	C.TLN_ConfigCRTEffect(_type, CBool(boolToUint8(blur)))
 }
 
 // TLNAPI void TLN_EnableCRTEffect (int overlay, uint8_t overlay_factor, uint8_t threshold, uint8_t v0, uint8_t v1, uint8_t v2, uint8_t v3, bool blur, uint8_t glow_factor);
 func EnableCRTEffect(overlay int, overlay_factor uint8, threshold uint8, v0 uint8, v1 uint8, v2 uint8, v3 uint8, blur bool, glow_factor uint8) {
-	b := 0
-	if blur {
-		b = 1
-	}
-	C.TLN_EnableCRTEffect(CInt(overlay), CUint8(overlay_factor), CUint8(threshold), CUint8(v0), CUint8(v1), CUint8(v2), CUint8(v3), CBool(b), CUint8(glow_factor))
+	// b := 0
+	// if blur {
+	// 	b = 1
+	// }
+	C.TLN_EnableCRTEffect(CInt(overlay), CUint8(overlay_factor), CUint8(threshold), CUint8(v0), CUint8(v1), CUint8(v2), CUint8(v3), CBool(boolToUint8(blur)), CUint8(glow_factor))
 }
 
 // TLNAPI void TLN_DisableCRTEffect (void);
@@ -784,6 +848,11 @@ func GetTicks() uint32 {
 	return uint32(C.TLN_GetTicks())
 }
 
+// TLNAPI uint32_t TLN_GetAverageFps(void);
+func GetAverageFps() uint32 {
+	return uint32(C.TLN_GetAverageFps())
+}
+
 // TLNAPI int TLN_GetWindowWidth(void);
 func GetWindowWidth() int {
 	return int(C.TLN_GetWindowWidth())
@@ -794,59 +863,73 @@ func GetWindowHeight() int {
 	return int(C.TLN_GetWindowHeight())
 }
 
+// TLNAPI int TLN_GetWindowScaleFactor(void);
+func GetWindowScaleFactor() int {
+	return int(C.TLN_GetWindowScaleFactor())
+}
+
+// TLNAPI void TLN_SetWindowScaleFactor(int factor);
+func SetWindowScaleFactor(factor int) {
+	C.TLN_SetWindowScaleFactor(CInt(factor))
+}
+
 // }
 
 // {
 // TLNAPI TLN_Spriteset TLN_CreateSpriteset (TLN_Bitmap bitmap, TLN_SpriteData* data, int num_entries);
 func createSpriteset(bitmap Bitmap, data *C.TLN_SpriteData, num_entries int) Spriteset {
-	return C.TLN_CreateSpriteset(bitmap, data, CInt(num_entries))
+	return Spriteset{data: C.TLN_CreateSpriteset(bitmap.data, data, CInt(num_entries))}
 }
 
-func CreateSpriteset(bitmap Bitmap, data *SpriteData, num_entries int) Spriteset {
-	return C.TLN_CreateSpriteset(bitmap, (*C.TLN_SpriteData)(unsafe.Pointer(data)), CInt(num_entries))
+func CreateSpriteset(bitmap Bitmap, data []SpriteData, num_entries int) Spriteset {
+	return Spriteset{C.TLN_CreateSpriteset(bitmap.data, (*C.TLN_SpriteData)(unsafe.Pointer(&data[0])), CInt(num_entries))}
 }
 
 // TLNAPI TLN_Spriteset TLN_LoadSpriteset (const char* name);
 func LoadSpriteset(name string) Spriteset {
-	return C.TLN_LoadSpriteset(C.CString(name))
+	return Spriteset{data: C.TLN_LoadSpriteset(C.CString(name))}
 }
 
 // TLNAPI TLN_Spriteset TLN_CloneSpriteset (TLN_Spriteset src);
-func CloneSpriteset(src Spriteset) Spriteset {
-	return C.TLN_CloneSpriteset(src)
+func (src Spriteset) CloneSpriteset() Spriteset {
+	return Spriteset{data: C.TLN_CloneSpriteset(src.data)}
 }
 
 // TLNAPI bool TLN_GetSpriteInfo (TLN_Spriteset spriteset, int entry, TLN_SpriteInfo* info);
-func getSpriteInfo(spriteset Spriteset, entry int, info *C.TLN_SpriteInfo) bool {
-	return convertBool(C.TLN_GetSpriteInfo(spriteset, CInt(entry), info))
+func (spriteset Spriteset) getSpriteInfo(entry int, info *C.TLN_SpriteInfo) bool {
+	return convertBool(C.TLN_GetSpriteInfo(spriteset.data, CInt(entry), info))
 }
 
-func GetSpriteInfo(spriteset Spriteset, entry int, info *SpriteInfo) bool {
-	return convertBool(C.TLN_GetSpriteInfo(spriteset, CInt(entry), (*C.TLN_SpriteInfo)(unsafe.Pointer(info))))
+func (spriteset Spriteset) GetSpriteInfo(entry int, info *SpriteInfo) bool {
+	return convertBool(C.TLN_GetSpriteInfo(spriteset.data, CInt(entry), (*C.TLN_SpriteInfo)(unsafe.Pointer(info))))
 }
 
 // TLNAPI TLN_Palette TLN_GetSpritesetPalette (TLN_Spriteset spriteset);
-func GetSpritesetPalette(spriteset Spriteset) Palette {
-	return C.TLN_GetSpritesetPalette(spriteset)
+func (spriteset Spriteset) GetSpritesetPalette() Palette {
+	return Palette{data: C.TLN_GetSpritesetPalette(spriteset.data)}
 }
 
 // TLNAPI int TLN_FindSpritesetSprite (TLN_Spriteset spriteset, const char* name);
-func FindSpritesetSprite(spriteset Spriteset, name string) int {
-	return int(C.TLN_FindSpritesetSprite(spriteset, C.CString(name)))
+func (spriteset Spriteset) FindSpritesetSprite(name string) int {
+	return int(C.TLN_FindSpritesetSprite(spriteset.data, C.CString(name)))
 }
 
 // TLNAPI bool TLN_SetSpritesetData (TLN_Spriteset spriteset, int entry, TLN_SpriteData* data, void* pixels, int pitch);
-func setSpritesetData(spriteset Spriteset, entry int, data *C.TLN_SpriteData, pixels unsafe.Pointer, pitch int) bool {
-	return convertBool(C.TLN_SetSpritesetData(spriteset, CInt(entry), data, pixels, CInt(pitch)))
+func (spriteset Spriteset) setSpritesetData(entry int, data *C.TLN_SpriteData, pixels unsafe.Pointer, pitch int) bool {
+	return convertBool(C.TLN_SetSpritesetData(spriteset.data, CInt(entry), data, pixels, CInt(pitch)))
 }
 
-func SetSpritesetData(spriteset Spriteset, entry int, data *SpriteData, pixels unsafe.Pointer, pitch int) bool {
-	return convertBool(C.TLN_SetSpritesetData(spriteset, CInt(entry), (*C.TLN_SpriteData)(unsafe.Pointer(data)), pixels, CInt(pitch)))
+func (spriteset Spriteset) SetSpritesetData(entry int, data *SpriteData, pixels []uint8, pitch int) bool {
+	return convertBool(C.TLN_SetSpritesetData(spriteset.data, CInt(entry), (*C.TLN_SpriteData)(unsafe.Pointer(data)), (unsafe.Pointer)(&pixels[0]), CInt(pitch)))
 }
 
 // TLNAPI bool TLN_DeleteSpriteset (TLN_Spriteset Spriteset);
-func DeleteSpriteset(spriteset Spriteset) bool {
-	return convertBool(C.TLN_DeleteSpriteset(spriteset))
+func (spriteset *Spriteset) DeleteSpriteset() bool {
+	a := convertBool(C.TLN_DeleteSpriteset(spriteset.data))
+	if a {
+		spriteset.data = nil
+	}
+	return a
 }
 
 // }
@@ -854,142 +937,150 @@ func DeleteSpriteset(spriteset Spriteset) bool {
 // {
 // TLNAPI TLN_Tileset TLN_CreateTileset (int numtiles, int width, int height, TLN_Palette palette, TLN_SequencePack sp, TLN_TileAttributes* attributes);
 func tLN_CreateTileset(numtiles CInt, width CInt, height CInt, palette Palette, sp SequencePack, attributes *C.TLN_TileAttributes) Tileset {
-	return C.TLN_CreateTileset(numtiles, width, height, palette, sp, attributes)
+	return Tileset{data: C.TLN_CreateTileset(numtiles, width, height, palette.data, sp.data, attributes)}
 }
 
-func CreateTileset(numtiles, width, height int32, palette Palette, sp SequencePack, attributes *TileAttributes) Tileset {
-	return tLN_CreateTileset(CInt(numtiles), CInt(width), CInt(height), palette, sp, (*C.TLN_TileAttributes)(unsafe.Pointer(attributes)))
+func CreateTileset(numtiles, width, height int32, palette Palette, sp SequencePack, attributes []TileAttributes) Tileset {
+	return tLN_CreateTileset(CInt(numtiles), CInt(width), CInt(height), palette, sp, (*C.TLN_TileAttributes)(unsafe.Pointer(&attributes[0])))
 }
 
 // TLNAPI TLN_Tileset TLN_CreateImageTileset(int numtiles, TLN_TileImage* images);
-func createImageTileset(numtiles int, images *C.TLN_TileImage) Tileset {
-	return C.TLN_CreateImageTileset(CInt(numtiles), images)
+func CreateImageTileset(images []TileImage) Tileset {
+	return Tileset{data: C.TLN_CreateImageTileset(CInt(len(images)), (*C.TLN_TileImage)(unsafe.Pointer(&images[0])))}
 }
 
-func CreateImageTileset(numtiles int, images *TileImage) Tileset {
-	return createImageTileset(numtiles, (*C.TLN_TileImage)(unsafe.Pointer(images)))
-}
+// func createImageTileset(numtiles int, images []TileImage) Tileset {
+// 	return Tileset{data: C.TLN_CreateImageTileset(CInt(numtiles), (*C.TLN_TileImage)(unsafe.Pointer(&images[0])))}
+// }
 
 // TLNAPI TLN_Tileset TLN_LoadTileset (const char* filename);
 func LoadTileset(filename string) Tileset {
-	return C.TLN_LoadTileset(C.CString(filename))
+	return Tileset{data: C.TLN_LoadTileset(C.CString(filename))}
 }
 
 // TLNAPI TLN_Tileset TLN_CloneTileset (TLN_Tileset src);
-func CloneTileset(src Tileset) Tileset {
-	return C.TLN_CloneTileset(src)
+func (src Tileset) CloneTileset() Tileset {
+	return Tileset{data: C.TLN_CloneTileset(src.data)}
 }
 
 // TLNAPI bool TLN_SetTilesetPixels (TLN_Tileset tileset, int entry, uint8_t* srcdata, int srcpitch);
-func SetTilesetPixels(tileset Tileset, entry int, srcdata *CUint8, srcpitch int) bool {
-	return convertBool(C.TLN_SetTilesetPixels(tileset, CInt(entry), srcdata, CInt(srcpitch)))
+func (tileset Tileset) SetTilesetPixels(entry int, srcdata []uint8, srcpitch int) bool {
+	return convertBool(C.TLN_SetTilesetPixels(tileset.data, CInt(entry), (*CUint8)(&srcdata[0]), CInt(srcpitch)))
 }
 
 // TLNAPI int TLN_GetTileWidth (TLN_Tileset tileset);
-func GetTileWidth(tileset Tileset) int {
-	return int(C.TLN_GetTileWidth(tileset))
+func (tileset Tileset) GetTileWidth() int {
+	return int(C.TLN_GetTileWidth(tileset.data))
 }
 
 // TLNAPI int TLN_GetTileHeight (TLN_Tileset tileset);
-func GetTileHeight(tileset Tileset) int {
-	return int(C.TLN_GetTileHeight(tileset))
+func (tileset Tileset) GetTileHeight() int {
+	return int(C.TLN_GetTileHeight(tileset.data))
 }
 
 // TLNAPI int TLN_GetTilesetNumTiles(TLN_Tileset tileset);
-func GetTilesetNumTiles(tileset Tileset) int {
-	return int(C.TLN_GetTilesetNumTiles(tileset))
+func (tileset Tileset) GetTilesetNumTiles() int {
+	return int(C.TLN_GetTilesetNumTiles(tileset.data))
 }
 
 // TLNAPI TLN_Palette TLN_GetTilesetPalette (TLN_Tileset tileset);
-func GetTilesetPalette(tileset Tileset) Palette {
-	return C.TLN_GetTilesetPalette(tileset)
+func (tileset Tileset) GetTilesetPalette() Palette {
+	return Palette{data: C.TLN_GetTilesetPalette(tileset.data)}
 }
 
 // TLNAPI TLN_SequencePack TLN_GetTilesetSequencePack (TLN_Tileset tileset);
-func GetTilesetSequencePack(tileset Tileset) SequencePack {
-	return C.TLN_GetTilesetSequencePack(tileset)
+func (tileset Tileset) GetTilesetSequencePack() SequencePack {
+	return SequencePack{data: C.TLN_GetTilesetSequencePack(tileset.data)}
 }
 
 // TLNAPI bool TLN_DeleteTileset (TLN_Tileset tileset);
-func DeleteTileset(tileset Tileset) bool {
-	return convertBool(C.TLN_DeleteTileset(tileset))
+func (tileset *Tileset) DeleteTileset() bool {
+	a := convertBool(C.TLN_DeleteTileset(tileset.data))
+	if a {
+		tileset.data = nil
+	}
+	return a
 }
 
 // }
 
 // {
 // TLNAPI TLN_Tilemap TLN_CreateTilemap (int rows, int cols, TLN_Tile tiles, uint32_t bgcolor, TLN_Tileset tileset);
-func CreateTilemap(rows, cols int, tiles Tile, bgcolor uint32, tileset Tileset) Tilemap {
-	return C.TLN_CreateTilemap(CInt(rows), CInt(cols), tiles, CUint32(bgcolor), tileset)
+func CreateTilemap(rows, cols int, tiles []Tile, bgcolor uint32, tileset Tileset) Tilemap {
+	return Tilemap{data: C.TLN_CreateTilemap(CInt(rows), CInt(cols), (C.TLN_Tile)(unsafe.Pointer(&tiles[0])), CUint32(bgcolor), tileset.data)}
 }
 
 // TLNAPI TLN_Tilemap TLN_LoadTilemap (const char* filename, const char* layername);
 func LoadTilemap(filename string, layername string) Tilemap {
 	(C.CString(filename))
 	if layername == "" {
-		return C.TLN_LoadTilemap(C.CString(filename), nil)
+		return Tilemap{data: C.TLN_LoadTilemap(C.CString(filename), nil)}
 	}
-	return C.TLN_LoadTilemap(C.CString(filename), C.CString(layername))
+	return Tilemap{data: C.TLN_LoadTilemap(C.CString(filename), C.CString(layername))}
 }
 
 // TLNAPI TLN_Tilemap TLN_CloneTilemap (TLN_Tilemap src);
-func CloneTilemap(src Tilemap) Tilemap {
-	return C.TLN_CloneTilemap(src)
+func (src Tilemap) CloneTilemap() Tilemap {
+	return Tilemap{data: C.TLN_CloneTilemap(src.data)}
 }
 
 // TLNAPI int TLN_GetTilemapRows (TLN_Tilemap tilemap);
-func GetTilemapRows(tilemap Tilemap) int {
-	return int(C.TLN_GetTilemapRows(tilemap))
+func (tilemap Tilemap) GetTilemapRows() int {
+	return int(C.TLN_GetTilemapRows(tilemap.data))
 }
 
 // TLNAPI int TLN_GetTilemapCols (TLN_Tilemap tilemap);
-func GetTilemapCols(tilemap Tilemap) int {
-	return int(C.TLN_GetTilemapCols(tilemap))
+func (tilemap Tilemap) GetTilemapCols() int {
+	return int(C.TLN_GetTilemapCols(tilemap.data))
 }
 
 // TLNAPI bool TLN_SetTilemapTileset(TLN_Tilemap tilemap, TLN_Tileset tileset);
-func SetTilemapTileset(tilemap Tilemap, tileset Tileset) bool {
-	return convertBool(C.TLN_SetTilemapTileset(tilemap, tileset))
+func (tilemap Tilemap) SetTilemapTileset(tileset Tileset) bool {
+	return convertBool(C.TLN_SetTilemapTileset(tilemap.data, tileset.data))
 }
 
 // TLNAPI TLN_Tileset TLN_GetTilemapTileset (TLN_Tilemap tilemap);
-func GetTilemapTileset(tilemap Tilemap) Tileset {
-	return C.TLN_GetTilemapTileset(tilemap)
+func (tilemap Tilemap) GetTilemapTileset() Tileset {
+	return Tileset{data: C.TLN_GetTilemapTileset(tilemap.data)}
 }
 
 // TLNAPI bool TLN_SetTilemapTileset2(TLN_Tilemap tilemap, TLN_Tileset tileset, int index);
-func SetTilemapTileset2(tilemap Tilemap, tileset Tileset, index int) bool {
-	return convertBool(C.TLN_SetTilemapTileset2(tilemap, tileset, CInt(index)))
+func (tilemap Tilemap) SetTilemapTileset2(tileset Tileset, index int) bool {
+	return convertBool(C.TLN_SetTilemapTileset2(tilemap.data, tileset.data, CInt(index)))
 }
 
 // TLNAPI TLN_Tileset TLN_GetTilemapTileset2(TLN_Tilemap tilemap, int index);
-func GetTilemapTileset2(tilemap Tilemap, index int) Tileset {
-	return C.TLN_GetTilemapTileset2(tilemap, CInt(index))
+func (tilemap Tilemap) GetTilemapTileset2(index int) Tileset {
+	return Tileset{data: C.TLN_GetTilemapTileset2(tilemap.data, CInt(index))}
 }
 
 // TLNAPI bool TLN_GetTilemapTile (TLN_Tilemap tilemap, int row, int col, TLN_Tile tile);
-func GetTilemapTile(tilemap Tilemap, row, col int, tile Tile) bool {
-	return convertBool(C.TLN_GetTilemapTile(tilemap, CInt(row), CInt(col), tile))
+func (tilemap Tilemap) GetTilemapTile(row, col int, tile *Tile) bool {
+	return convertBool(C.TLN_GetTilemapTile(tilemap.data, CInt(row), CInt(col), (C.TLN_Tile)(unsafe.Pointer(tile))))
 }
 
 // TLNAPI bool TLN_SetTilemapTile (TLN_Tilemap tilemap, int row, int col, TLN_Tile tile);
-func SetTilemapTile(tilemap Tilemap, row, col int, tile Tile) bool {
-	return convertBool(C.TLN_SetTilemapTile(tilemap, CInt(row), CInt(col), tile))
+func (tilemap Tilemap) SetTilemapTile(row, col int, tile *Tile) bool {
+	return convertBool(C.TLN_SetTilemapTile(tilemap.data, CInt(row), CInt(col), (C.TLN_Tile)(unsafe.Pointer(tile))))
 }
 
 // TLNAPI bool TLN_CopyTiles (TLN_Tilemap src, int srcrow, int srccol, int rows, int cols, TLN_Tilemap dst, int dstrow, int dstcol);
-func CopyTiles(src Tilemap, srcrow, srccol, rows, cols int, dst Tilemap, dstrow, dstcol int) bool {
-	return convertBool(C.TLN_CopyTiles(src, CInt(srcrow), CInt(srccol), CInt(rows), CInt(cols), dst, CInt(dstrow), CInt(dstcol)))
+func (src Tilemap) CopyTiles(srcrow, srccol, rows, cols int, dst Tilemap, dstrow, dstcol int) bool {
+	return convertBool(C.TLN_CopyTiles(src.data, CInt(srcrow), CInt(srccol), CInt(rows), CInt(cols), dst.data, CInt(dstrow), CInt(dstcol)))
 }
 
 // TLNAPI TLN_Tile TLN_GetTilemapTiles(TLN_Tilemap tilemap, int row, int col);
-func GetTilemapTiles(tilemap Tilemap, row, col int) Tile {
-	return C.TLN_GetTilemapTiles(tilemap, CInt(row), CInt(col))
-}
+// func GetTilemapTiles(tilemap Tilemap, row, col int) *Tile {
+// 	return (*Tile)(C.TLN_GetTilemapTiles(tilemap, CInt(row), CInt(col)))
+// }
 
 // TLNAPI bool TLN_DeleteTilemap (TLN_Tilemap tilemap);
-func DeleteTilemap(tilemap Tilemap) bool {
-	return convertBool(C.TLN_DeleteTilemap(tilemap))
+func (tilemap *Tilemap) DeleteTilemap() bool {
+	a := convertBool(C.TLN_DeleteTilemap(tilemap.data))
+	if a {
+		tilemap.data = nil
+	}
+	return a
 }
 
 // }
@@ -997,52 +1088,69 @@ func DeleteTilemap(tilemap Tilemap) bool {
 // {
 // TLNAPI TLN_Palette TLN_CreatePalette (int entries);
 func CreatePalette(entries int) Palette {
-	return C.TLN_CreatePalette(CInt(entries))
+	return Palette{data: C.TLN_CreatePalette(CInt(entries))}
 }
 
 // TLNAPI TLN_Palette TLN_LoadPalette (const char* filename);
 func LoadPalette(filename string) Palette {
-	return C.TLN_LoadPalette(C.CString(filename))
+	return Palette{data: C.TLN_LoadPalette(C.CString(filename))}
 }
 
 // TLNAPI TLN_Palette TLN_ClonePalette (TLN_Palette src);
-func ClonePalette(src Palette) Palette {
-	return C.TLN_ClonePalette(src)
+func (src Palette) ClonePalette() Palette {
+	return Palette{data: C.TLN_ClonePalette(src.data)}
 }
 
 // TLNAPI bool TLN_SetPaletteColor (TLN_Palette palette, int color, uint8_t r, uint8_t g, uint8_t b);
-func SetPaletteColor(palette Palette, color int, r, g, b uint8) bool {
-	return convertBool(C.TLN_SetPaletteColor(palette, CInt(color), CUint8(r), CUint8(g), CUint8(b)))
+func (palette Palette) SetPaletteColor(color int, r, g, b uint8) bool {
+	return convertBool(C.TLN_SetPaletteColor(palette.data, CInt(color), CUint8(r), CUint8(g), CUint8(b)))
 }
 
 // TLNAPI bool TLN_MixPalettes (TLN_Palette src1, TLN_Palette src2, TLN_Palette dst, uint8_t factor);
-func MixPalettes(src1 Palette, src2 Palette, dst Palette, factor uint8) bool {
-	return convertBool(C.TLN_MixPalettes(src1, src2, dst, CUint8(factor)))
+func (dst Palette) MixPalettes(src1 Palette, src2 Palette, factor uint8) bool {
+	return convertBool(C.TLN_MixPalettes(src1.data, src2.data, dst.data, CUint8(factor)))
 }
 
 // TLNAPI bool TLN_AddPaletteColor (TLN_Palette palette, uint8_t r, uint8_t g, uint8_t b, uint8_t start, uint8_t num);
-func AddPaletteColor(palette Palette, r, g, b, start, num uint8) bool {
-	return convertBool(C.TLN_AddPaletteColor(palette, CUint8(r), CUint8(g), CUint8(b), CUint8(start), CUint8(num)))
+func (palette Palette) AddPaletteColor(r, g, b, start, num uint8) bool {
+	return convertBool(C.TLN_AddPaletteColor(palette.data, CUint8(r), CUint8(g), CUint8(b), CUint8(start), CUint8(num)))
 }
 
 // TLNAPI bool TLN_SubPaletteColor (TLN_Palette palette, uint8_t r, uint8_t g, uint8_t b, uint8_t start, uint8_t num);
-func SubPaletteColor(palette Palette, r, g, b, start, num uint8) bool {
-	return convertBool(C.TLN_SubPaletteColor(palette, CUint8(r), CUint8(g), CUint8(b), CUint8(start), CUint8(num)))
+func (palette Palette) SubPaletteColor(r, g, b, start, num uint8) bool {
+	return convertBool(C.TLN_SubPaletteColor(palette.data, CUint8(r), CUint8(g), CUint8(b), CUint8(start), CUint8(num)))
 }
 
 // TLNAPI bool TLN_ModPaletteColor (TLN_Palette palette, uint8_t r, uint8_t g, uint8_t b, uint8_t start, uint8_t num);
-func ModPaletteColor(palette Palette, r, g, b, start, num uint8) bool {
-	return convertBool(C.TLN_ModPaletteColor(palette, CUint8(r), CUint8(g), CUint8(b), CUint8(start), CUint8(num)))
+func (palette Palette) ModPaletteColor(r, g, b, start, num uint8) bool {
+	return convertBool(C.TLN_ModPaletteColor(palette.data, CUint8(r), CUint8(g), CUint8(b), CUint8(start), CUint8(num)))
+}
+
+type Color struct {
+	R uint8
+	G uint8
+	B uint8
+	A uint8
 }
 
 // TLNAPI uint8_t* TLN_GetPaletteData (TLN_Palette palette, int index);
-func GetPaletteData(palette Palette, index int) *CUint8 {
-	return C.TLN_GetPaletteData(palette, CInt(index))
+func (palette Palette) GetPaletteData(index int) Color {
+	c := (*Color)(unsafe.Pointer(C.TLN_GetPaletteData(palette.data, CInt(index))))
+	return *c
+}
+
+// TLNAPI int TLN_GetPaletteNumColors (TLN_Palette palette);
+func (palette Palette) GetPaletteNumColors() int {
+	return int(C.TLN_GetPaletteNumColors(palette.data))
 }
 
 // TLNAPI bool TLN_DeletePalette (TLN_Palette palette);
-func DeletePalette(palette Palette) bool {
-	return convertBool(C.TLN_DeletePalette(palette))
+func (palette *Palette) DeletePalette() bool {
+	a := convertBool(C.TLN_DeletePalette(palette.data))
+	if a {
+		palette.data = nil
+	}
+	return a
 }
 
 // }
@@ -1050,57 +1158,61 @@ func DeletePalette(palette Palette) bool {
 // {
 // TLNAPI TLN_Bitmap TLN_CreateBitmap (int width, int height, int bpp);
 func CreateBitmap(width, height, bpp int) Bitmap {
-	return C.TLN_CreateBitmap(CInt(width), CInt(height), CInt(bpp))
+	return Bitmap{data: C.TLN_CreateBitmap(CInt(width), CInt(height), CInt(bpp))}
 }
 
 // TLNAPI TLN_Bitmap TLN_LoadBitmap (const char* filename);
 func LoadBitmap(filename string) Bitmap {
-	return C.TLN_LoadBitmap(C.CString(filename))
+	return Bitmap{data: C.TLN_LoadBitmap(C.CString(filename))}
 }
 
 // TLNAPI TLN_Bitmap TLN_CloneBitmap (TLN_Bitmap src);
-func CloneBitmap(src Bitmap) Bitmap {
-	return C.TLN_CloneBitmap(src)
+func (src Bitmap) CloneBitmap() Bitmap {
+	return Bitmap{data: C.TLN_CloneBitmap(src.data)}
 }
 
 // TLNAPI uint8_t* TLN_GetBitmapPtr (TLN_Bitmap bitmap, int x, int y);
-func GetBitmapPtr(bitmap Bitmap, x, y int) *CUint8 {
-	return C.TLN_GetBitmapPtr(bitmap, CInt(x), CInt(y))
+func (bitmap Bitmap) GetBitmapPtr(x, y int) *CUint8 {
+	return C.TLN_GetBitmapPtr(bitmap.data, CInt(x), CInt(y))
 }
 
 // TLNAPI int TLN_GetBitmapWidth (TLN_Bitmap bitmap);
-func GetBitmapWidth(bitmap Bitmap) int {
-	return int(C.TLN_GetBitmapWidth(bitmap))
+func (bitmap Bitmap) GetBitmapWidth() int {
+	return int(C.TLN_GetBitmapWidth(bitmap.data))
 }
 
 // TLNAPI int TLN_GetBitmapHeight (TLN_Bitmap bitmap);
-func GetBitmapHeight(bitmap Bitmap) int {
-	return int(C.TLN_GetBitmapHeight(bitmap))
+func (bitmap Bitmap) GetBitmapHeight() int {
+	return int(C.TLN_GetBitmapHeight(bitmap.data))
 }
 
 // TLNAPI int TLN_GetBitmapDepth (TLN_Bitmap bitmap);
-func GetBitmapDepth(bitmap Bitmap) int {
-	return int(C.TLN_GetBitmapDepth(bitmap))
+func (bitmap Bitmap) GetBitmapDepth() int {
+	return int(C.TLN_GetBitmapDepth(bitmap.data))
 }
 
 // TLNAPI int TLN_GetBitmapPitch (TLN_Bitmap bitmap);
-func GetBitmapPitch(bitmap Bitmap) int {
-	return int(C.TLN_GetBitmapPitch(bitmap))
+func (bitmap Bitmap) GetBitmapPitch() int {
+	return int(C.TLN_GetBitmapPitch(bitmap.data))
 }
 
 // TLNAPI TLN_Palette TLN_GetBitmapPalette (TLN_Bitmap bitmap);
-func GetBitmapPalette(bitmap Bitmap) Palette {
-	return C.TLN_GetBitmapPalette(bitmap)
+func (bitmap Bitmap) GetBitmapPalette() Palette {
+	return Palette{data: C.TLN_GetBitmapPalette(bitmap.data)}
 }
 
 // TLNAPI bool TLN_SetBitmapPalette (TLN_Bitmap bitmap, TLN_Palette palette);
-func SetBitmapPalette(bitmap Bitmap, palette Palette) bool {
-	return convertBool(C.TLN_SetBitmapPalette(bitmap, palette))
+func (bitmap Bitmap) SetBitmapPalette(palette Palette) bool {
+	return convertBool(C.TLN_SetBitmapPalette(bitmap.data, palette.data))
 }
 
 // TLNAPI bool TLN_DeleteBitmap (TLN_Bitmap bitmap);
-func DeleteBitmap(bitmap Bitmap) bool {
-	return convertBool(C.TLN_DeleteBitmap(bitmap))
+func (bitmap *Bitmap) DeleteBitmap() bool {
+	a := convertBool(C.TLN_DeleteBitmap(bitmap.data))
+	if a {
+		bitmap.data = nil
+	}
+	return a
 }
 
 // }
@@ -1108,289 +1220,297 @@ func DeleteBitmap(bitmap Bitmap) bool {
 // {
 // TLNAPI TLN_ObjectList TLN_CreateObjectList(void);
 func CreateObjectList() ObjectList {
-	return C.TLN_CreateObjectList()
+	return ObjectList{data: C.TLN_CreateObjectList()}
 }
 
 // TLNAPI bool TLN_AddTileObjectToList(TLN_ObjectList list, uint16_t id, uint16_t gid, uint16_t flags, int x, int y);
-func AddTileObjectToList(list ObjectList, id, gid, flags uint16, x, y int) bool {
-	return convertBool(C.TLN_AddTileObjectToList(list, CUint16(id), CUint16(gid), CUint16(flags), CInt(x), CInt(y)))
+func (list ObjectList) AddTileObjectToList(id, gid, flags uint16, x, y int) bool {
+	return convertBool(C.TLN_AddTileObjectToList(list.data, CUint16(id), CUint16(gid), CUint16(flags), CInt(x), CInt(y)))
 }
 
 // TLNAPI TLN_ObjectList TLN_LoadObjectList(const char* filename, const char* layername);
 func LoadObjectList(filename string, layername string) ObjectList {
 	if layername == "" {
-		return C.TLN_LoadObjectList(C.CString(filename), nil)
+		return ObjectList{data: C.TLN_LoadObjectList(C.CString(filename), nil)}
 	}
-	return C.TLN_LoadObjectList(C.CString(filename), C.CString(layername))
+	return ObjectList{data: C.TLN_LoadObjectList(C.CString(filename), C.CString(layername))}
 }
 
 // TLNAPI TLN_ObjectList TLN_CloneObjectList(TLN_ObjectList src);
-func CloneObjectList(src ObjectList) ObjectList {
-	return C.TLN_CloneObjectList(src)
+func (src ObjectList) CloneObjectList() ObjectList {
+	return ObjectList{data: C.TLN_CloneObjectList(src.data)}
 }
 
 // TLNAPI int TLN_GetListNumObjects(TLN_ObjectList list);
-func GetListNumObjects(list ObjectList) int {
-	return int(C.TLN_GetListNumObjects(list))
+func (list ObjectList) GetListNumObjects() int {
+	return int(C.TLN_GetListNumObjects(list.data))
 }
 
 // TLNAPI bool TLN_GetListObject(TLN_ObjectList list, TLN_ObjectInfo* info);
-func getListObject(list ObjectList, info *C.TLN_ObjectInfo) bool {
-	return convertBool(C.TLN_GetListObject(list, info))
+func (list ObjectList) GetListObject(info *ObjectInfo) bool {
+	return convertBool(C.TLN_GetListObject(list.data, (*C.TLN_ObjectInfo)(unsafe.Pointer(info))))
 }
 
-func GetListObject(list ObjectList, info *ObjectInfo) bool {
-	return convertBool(C.TLN_GetListObject(list, (*C.TLN_ObjectInfo)(unsafe.Pointer(info))))
-}
+// func GetListObject(list ObjectList, info *ObjectInfo) bool {
+// 	return convertBool(C.TLN_GetListObject(list, (*C.TLN_ObjectInfo)(unsafe.Pointer(info))))
+// }
 
 // TLNAPI bool TLN_DeleteObjectList(TLN_ObjectList list);
-func DeleteObjectList(list ObjectList) bool {
-	return convertBool(C.TLN_DeleteObjectList(list))
+func (list *ObjectList) DeleteObjectList() bool {
+	r := convertBool(C.TLN_DeleteObjectList(list.data))
+	if r {
+		list.data = nil
+	}
+	return r
 }
 
 // }
 
 // {
 // TLNAPI bool TLN_SetLayer (int nlayer, TLN_Tileset tileset, TLN_Tilemap tilemap);
-func SetLayer(nlayer int, tileset Tileset, tilemap Tilemap) bool {
-	return convertBool(C.TLN_SetLayer(CInt(nlayer), tileset, tilemap))
+func (layer Layer) SetLayer(tileset Tileset, tilemap Tilemap) bool {
+	return convertBool(C.TLN_SetLayer(CInt(layer), tileset.data, tilemap.data))
 }
 
 // TLNAPI bool TLN_SetLayerTilemap(int nlayer, TLN_Tilemap tilemap);
-func SetLayerTilemap(nlayer int, tilemap Tilemap) bool {
-	return convertBool(C.TLN_SetLayerTilemap(CInt(nlayer), tilemap))
+func (layer Layer) SetLayerTilemap(tilemap Tilemap) bool {
+	return convertBool(C.TLN_SetLayerTilemap(CInt(layer), tilemap.data))
 }
 
 // TLNAPI bool TLN_SetLayerBitmap(int nlayer, TLN_Bitmap bitmap);
-func SetLayerBitmap(nlayer int, bitmap Bitmap) bool {
-	return convertBool(C.TLN_SetLayerBitmap(CInt(nlayer), bitmap))
+func (layer Layer) SetLayerBitmap(bitmap Bitmap) bool {
+	return convertBool(C.TLN_SetLayerBitmap(CInt(layer), bitmap.data))
 }
 
 // TLNAPI bool TLN_SetLayerPalette (int nlayer, TLN_Palette palette);
-func SetLayerPalette(nlayer int, palette Palette) bool {
-	return convertBool(C.TLN_SetLayerPalette(CInt(nlayer), palette))
+func (layer Layer) SetLayerPalette(palette Palette) bool {
+	return convertBool(C.TLN_SetLayerPalette(CInt(layer), palette.data))
 }
 
 // TLNAPI bool TLN_SetLayerPosition (int nlayer, int hstart, int vstart);
-func SetLayerPosition(nlayer, hstart, vstart int) bool {
-	return convertBool(C.TLN_SetLayerPosition(CInt(nlayer), CInt(hstart), CInt(vstart)))
+func (layer Layer) SetLayerPosition(hstart, vstart int) bool {
+	return convertBool(C.TLN_SetLayerPosition(CInt(layer), CInt(hstart), CInt(vstart)))
 }
 
 // TLNAPI bool TLN_SetLayerScaling (int nlayer, float xfactor, float yfactor);
-func SetLayerScaling(nlayer int, xfactor float32, yfactor float32) bool {
-	return convertBool(C.TLN_SetLayerScaling(CInt(nlayer), CFloat(xfactor), CFloat(yfactor)))
+func (layer Layer) SetLayerScaling(xfactor float32, yfactor float32) bool {
+	return convertBool(C.TLN_SetLayerScaling(CInt(layer), CFloat(xfactor), CFloat(yfactor)))
 }
 
 // TLNAPI bool TLN_SetLayerAffineTransform (int nlayer, TLN_Affine *affine);
-func setLayerAffineTransform(nlayer int, affine *C.TLN_Affine) bool {
-	return convertBool(C.TLN_SetLayerAffineTransform(CInt(nlayer), affine))
-}
-
-func SetLayerAffineTransform(nlayer int, affine *Affine) bool {
-	return setLayerAffineTransform(nlayer, (*C.TLN_Affine)(unsafe.Pointer(affine)))
+func (layer Layer) SetLayerAffineTransform(affine *Affine) bool {
+	return convertBool(C.TLN_SetLayerAffineTransform(CInt(layer), (*C.TLN_Affine)(unsafe.Pointer(affine))))
 }
 
 // TLNAPI bool TLN_SetLayerTransform (int layer, float angle, float dx, float dy, float sx, float sy);
-func SetLayerTransform(layer int, angle, dx, dy, sx, sy float32) bool {
+func (layer Layer) SetLayerTransform(angle, dx, dy, sx, sy float32) bool {
 	return convertBool(C.TLN_SetLayerTransform(CInt(layer), CFloat(angle), CFloat(dx), CFloat(dy), CFloat(sx), CFloat(sy)))
 }
 
 // TLNAPI bool TLN_SetLayerPixelMapping (int nlayer, TLN_PixelMap* table);
-func setLayerPixelMapping(nlayer int, table *C.TLN_PixelMap) bool {
-	return convertBool(C.TLN_SetLayerPixelMapping(CInt(nlayer), table))
-}
-
-func SetLayerPixelMapping(nlayer int, table []PixelMap) bool {
-	return setLayerPixelMapping(nlayer, (*C.TLN_PixelMap)(unsafe.Pointer(&table[0])))
+func (layer Layer) SetLayerPixelMapping(table []PixelMap) bool {
+	return convertBool(C.TLN_SetLayerPixelMapping(CInt(layer), (*C.TLN_PixelMap)(unsafe.Pointer(&table[0]))))
 }
 
 // TLNAPI bool TLN_SetLayerBlendMode (int nlayer, TLN_Blend mode, uint8_t factor);
-func SetLayerBlendMode(nlayer int, mode Blend, factor uint8) bool {
-	return convertBool(C.TLN_SetLayerBlendMode(CInt(nlayer), mode, CUint8(factor)))
+func (layer Layer) SetLayerBlendMode(mode Blend, factor uint8) bool {
+	return convertBool(C.TLN_SetLayerBlendMode(CInt(layer), mode, CUint8(factor)))
 }
 
 // TLNAPI bool TLN_SetLayerColumnOffset (int nlayer, int* offset);
-func setLayerColumnOffset(nlayer int, offset *CInt) bool {
-	return convertBool(C.TLN_SetLayerColumnOffset(CInt(nlayer), offset))
-}
-
-func SetLayerColumnOffset(nlayer int, offset []int32) bool {
-	return setLayerColumnOffset(nlayer, (*CInt)(unsafe.Pointer(&offset[0])))
+func (layer Layer) SetLayerColumnOffset(offset []int32) bool {
+	return convertBool(C.TLN_SetLayerColumnOffset(CInt(layer), (*CInt)(unsafe.Pointer(&offset[0]))))
 }
 
 // TLNAPI bool TLN_SetLayerClip (int nlayer, int x1, int y1, int x2, int y2);
-func SetLayerClip(nlayer, x1, y1, x2, y2 int) bool {
-	return convertBool(C.TLN_SetLayerClip(CInt(nlayer), CInt(x1), CInt(y1), CInt(x2), CInt(y2)))
+func (layer Layer) SetLayerClip(x1, y1, x2, y2 int) bool {
+	return convertBool(C.TLN_SetLayerClip(CInt(layer), CInt(x1), CInt(y1), CInt(x2), CInt(y2)))
 }
 
 // TLNAPI bool TLN_DisableLayerClip (int nlayer);
-func DisableLayerClip(nlayer int) bool {
-	return convertBool(C.TLN_DisableLayerClip(CInt(nlayer)))
+func (layer Layer) DisableLayerClip() bool {
+	return convertBool(C.TLN_DisableLayerClip(CInt(layer)))
+}
+
+// TLNAPI bool TLN_SetLayerWindow(int nlayer, int x1, int y1, int x2, int y2, bool invert);
+func (layer Layer) SetLayerWindow(x1, y1, x2, y2 int, invert bool) bool {
+	return convertBool(C.TLN_SetLayerWindow(CInt(layer), CInt(x1), CInt(y1), CInt(x2), CInt(y2), CBool(boolToUint8(invert))))
+}
+
+// TLNAPI bool TLN_SetLayerWindowColor(int nlayer, uint8_t r, uint8_t g, uint8_t b, TLN_Blend blend);
+func (layer Layer) SetLayerWindowColor(r, g, b uint8, blend Blend) bool {
+	return convertBool(C.TLN_SetLayerWindowColor(CInt(layer), CUint8(r), CUint8(g), CUint8(b), blend))
+}
+
+// TLNAPI bool TLN_DisableLayerWindow(int nlayer);
+func (layer Layer) DisableLayerWindow() bool {
+	return convertBool(C.TLN_DisableLayerWindow(CInt(layer)))
+}
+
+// TLNAPI bool TLN_DisableLayerWindowColor(int nlayer);
+func (layer Layer) DisableLayerWindowColor() bool {
+	return convertBool(C.TLN_DisableLayerWindow(CInt(layer)))
 }
 
 // TLNAPI bool TLN_SetLayerMosaic (int nlayer, int width, int height);
-func SetLayerMosaic(nlayer, width, height int) bool {
-	return convertBool(C.TLN_SetLayerMosaic(CInt(nlayer), CInt(width), CInt(height)))
+func (layer Layer) SetLayerMosaic(width, height int) bool {
+	return convertBool(C.TLN_SetLayerMosaic(CInt(layer), CInt(width), CInt(height)))
 }
 
 // TLNAPI bool TLN_DisableLayerMosaic (int nlayer);
-func DisableLayerMosaic(nlayer int) bool {
-	return convertBool(C.TLN_DisableLayerMosaic(CInt(nlayer)))
+func (layer Layer) DisableLayerMosaic() bool {
+	return convertBool(C.TLN_DisableLayerMosaic(CInt(layer)))
 }
 
 // TLNAPI bool TLN_ResetLayerMode (int nlayer);
-func ResetLayerMode(nlayer int) bool {
-	return convertBool(C.TLN_ResetLayerMode(CInt(nlayer)))
+func (layer Layer) ResetLayerMode() bool {
+	return convertBool(C.TLN_ResetLayerMode(CInt(layer)))
 }
 
 // TLNAPI bool TLN_SetLayerObjects(int nlayer, TLN_ObjectList objects, TLN_Tileset tileset);
-func SetLayerObjects(nlayer int, objects ObjectList, tileset Tileset) bool {
-	return convertBool(C.TLN_SetLayerObjects(CInt(nlayer), objects, tileset))
+func (layer Layer) SetLayerObjects(objects ObjectList, tileset Tileset) bool {
+	return convertBool(C.TLN_SetLayerObjects(CInt(layer), objects.data, tileset.data))
 }
 
 // TLNAPI bool TLN_SetLayerPriority(int nlayer, bool enable);
-func SetLayerPriority(nlayer int, enable bool) bool {
-	e := 0
-	if enable {
-		e = 1
-	}
-	return convertBool(C.TLN_SetLayerPriority(CInt(nlayer), CBool(e)))
+func (layer Layer) SetLayerPriority(enable bool) bool {
+	// e := 0
+	// if enable {
+	// 	e = 1
+	// }
+	return convertBool(C.TLN_SetLayerPriority(CInt(layer), CBool(boolToUint8(enable))))
 }
 
 // TLNAPI bool TLN_SetLayerParent(int nlayer, int parent);
-func SetLayerParent(nlayer, parent int) bool {
-	return convertBool(C.TLN_SetLayerParent(CInt(nlayer), CInt(parent)))
+func (layer Layer) SetLayerParent(parent Layer) bool {
+	return convertBool(C.TLN_SetLayerParent(CInt(layer), CInt(parent)))
 }
 
 // TLNAPI bool TLN_DisableLayerParent(int nlayer);
-func DisableLayerParent(nlayer int) bool {
-	return convertBool(C.TLN_DisableLayerParent(CInt(nlayer)))
+func (layer Layer) DisableLayerParent() bool {
+	return convertBool(C.TLN_DisableLayerParent(CInt(layer)))
 }
 
 // TLNAPI bool TLN_DisableLayer (int nlayer);
-func DisableLayer(nlayer int) bool {
-	return convertBool(C.TLN_DisableLayer(CInt(nlayer)))
+func (layer Layer) DisableLayer() bool {
+	return convertBool(C.TLN_DisableLayer(CInt(layer)))
 }
 
 // TLNAPI bool TLN_EnableLayer(int nlayer);
-func EnableLayer(nlayer int) bool {
-	return convertBool(C.TLN_EnableLayer(CInt(nlayer)))
+func (layer Layer) EnableLayer() bool {
+	return convertBool(C.TLN_EnableLayer(CInt(layer)))
 }
 
 // TLNAPI TLN_LayerType TLN_GetLayerType(int nlayer);
-func GetLayerType(nlayer int) LayerType {
-	return C.TLN_GetLayerType(CInt(nlayer))
+func (layer Layer) GetLayerType() LayerType {
+	return C.TLN_GetLayerType(CInt(layer))
 }
 
 // TLNAPI TLN_Palette TLN_GetLayerPalette (int nlayer);
-func GetLayerPalette(nlayer int) Palette {
-	return C.TLN_GetLayerPalette(CInt(nlayer))
+func (layer Layer) GetLayerPalette() Palette {
+	return Palette{data: C.TLN_GetLayerPalette(CInt(layer))}
 }
 
 // TLNAPI TLN_Tileset TLN_GetLayerTileset(int nlayer);
-func GetLayerTileset(nlayer int) Tileset {
-	return C.TLN_GetLayerTileset(CInt(nlayer))
+func (layer Layer) GetLayerTileset() Tileset {
+	return Tileset{data: C.TLN_GetLayerTileset(CInt(layer))}
 }
 
 // TLNAPI TLN_Tilemap TLN_GetLayerTilemap(int nlayer);
-func GetLayerTilemap(nlayer int) Tilemap {
-	return C.TLN_GetLayerTilemap(CInt(nlayer))
+func (layer Layer) GetLayerTilemap() Tilemap {
+	return Tilemap{data: C.TLN_GetLayerTilemap(CInt(layer))}
 }
 
 // TLNAPI TLN_Bitmap TLN_GetLayerBitmap(int nlayer);
-func GetLayerBitmap(nlayer int) Bitmap {
-	return C.TLN_GetLayerBitmap(CInt(nlayer))
+func (layer Layer) GetLayerBitmap() Bitmap {
+	return Bitmap{data: C.TLN_GetLayerBitmap(CInt(layer))}
 }
 
 // TLNAPI TLN_ObjectList TLN_GetLayerObjects(int nlayer);
-func GetLayerObjects(nlayer int) ObjectList {
-	return C.TLN_GetLayerObjects(CInt(nlayer))
+func (layer Layer) GetLayerObjects() ObjectList {
+	return ObjectList{data: C.TLN_GetLayerObjects(CInt(layer))}
 }
 
 // TLNAPI bool TLN_GetLayerTile (int nlayer, int x, int y, TLN_TileInfo* info);
-func getLayerTile(nlayer, x, y int, info *C.TLN_TileInfo) bool {
-	return convertBool(C.TLN_GetLayerTile(CInt(nlayer), CInt(x), CInt(y), info))
-}
-
-func GetLayerTile(nlayer, x, y int, info *TileInfo) bool {
-	return getLayerTile(nlayer, x, y, (*C.TLN_TileInfo)(unsafe.Pointer(info)))
+func (layer Layer) GetLayerTile(x, y int, info *TileInfo) bool {
+	return convertBool(C.TLN_GetLayerTile(CInt(layer), CInt(x), CInt(y), (*C.TLN_TileInfo)(unsafe.Pointer(info))))
 }
 
 // TLNAPI int TLN_GetLayerWidth (int nlayer);
-func GetLayerWidth(nlayer int) int {
-	return int(C.TLN_GetLayerWidth(CInt(nlayer)))
+func (layer Layer) GetLayerWidth() int {
+	return int(C.TLN_GetLayerWidth(CInt(layer)))
 }
 
 // TLNAPI int TLN_GetLayerHeight (int nlayer);
-func GetLayerHeight(nlayer int) int {
-	return int(C.TLN_GetLayerHeight(CInt(nlayer)))
+func (layer Layer) GetLayerHeight() int {
+	return int(C.TLN_GetLayerHeight(CInt(layer)))
 }
 
 // TLNAPI int TLN_GetLayerX(int nlayer);
-func GetLayerX(nlayer int) int {
-	return int(C.TLN_GetLayerX(CInt(nlayer)))
+func (layer Layer) GetLayerX() int {
+	return int(C.TLN_GetLayerX(CInt(layer)))
 }
 
 // TLNAPI int TLN_GetLayerY(int nlayer);
-func GetLayerY(nlayer int) int {
-	return int(C.TLN_GetLayerY(CInt(nlayer)))
+func (layer Layer) GetLayerY() int {
+	return int(C.TLN_GetLayerY(CInt(layer)))
 }
 
 // }
 
 // {
 // TLNAPI bool TLN_ConfigSprite (int nsprite, TLN_Spriteset spriteset, uint32_t flags);
-func ConfigSprite(nsprite int, spriteset Spriteset, flags uint32) bool {
-	return convertBool(C.TLN_ConfigSprite(CInt(nsprite), spriteset, CUint32(flags)))
+func (sprite Sprite) ConfigSprite(spriteset Spriteset, flags uint32) bool {
+	return convertBool(C.TLN_ConfigSprite(CInt(sprite), spriteset.data, CUint32(flags)))
 }
 
 // TLNAPI bool TLN_SetSpriteSet (int nsprite, TLN_Spriteset spriteset);
-func SetSpriteSet(nsprite int, spriteset Spriteset) bool {
-	return convertBool(C.TLN_SetSpriteSet(CInt(nsprite), spriteset))
+func (sprite Sprite) SetSpriteSet(spriteset Spriteset) bool {
+	return convertBool(C.TLN_SetSpriteSet(CInt(sprite), spriteset.data))
 }
 
 // TLNAPI bool TLN_SetSpriteFlags (int nsprite, uint32_t flags);
-func SetSpriteFlags(nsprite int, flags uint32) bool {
-	return convertBool(C.TLN_SetSpriteFlags(CInt(nsprite), CUint32(flags)))
+func (sprite Sprite) SetSpriteFlags(flags uint32) bool {
+	return convertBool(C.TLN_SetSpriteFlags(CInt(sprite), CUint32(flags)))
 }
 
 // TLNAPI bool TLN_EnableSpriteFlag(int nsprite, uint32_t flag, bool enable);
-func EnableSpriteFlag(nsprite int, flag uint32, enable bool) bool {
-	e := 0
-	if enable {
-		e = 1
-	}
-	return convertBool(C.TLN_EnableSpriteFlag(CInt(nsprite), CUint32(flag), CBool(e)))
+func (sprite Sprite) EnableSpriteFlag(flag uint32, enable bool) bool {
+	// e := 0
+	// if enable {
+	// 	e = 1
+	// }
+	return convertBool(C.TLN_EnableSpriteFlag(CInt(sprite), CUint32(flag), CBool(boolToUint8(enable))))
 }
 
 // TLNAPI bool TLN_SetSpritePivot(int nsprite, float px, float py);
-func SetSpritePivot(nsprite int, px float32, py float32) bool {
-	return convertBool(C.TLN_SetSpritePivot(CInt(nsprite), CFloat(px), CFloat(py)))
+func (sprite Sprite) SetSpritePivot(px float32, py float32) bool {
+	return convertBool(C.TLN_SetSpritePivot(CInt(sprite), CFloat(px), CFloat(py)))
 }
 
 // TLNAPI bool TLN_SetSpritePosition (int nsprite, int x, int y);
-func SetSpritePosition(nsprite, x, y int) bool {
-	return convertBool(C.TLN_SetSpritePosition(CInt(nsprite), CInt(x), CInt(y)))
+func (sprite Sprite) SetSpritePosition(x, y int) bool {
+	return convertBool(C.TLN_SetSpritePosition(CInt(sprite), CInt(x), CInt(y)))
 }
 
 // TLNAPI bool TLN_SetSpritePicture (int nsprite, int entry);
-func SetSpritePicture(nsprite, entry int) bool {
-	return convertBool(C.TLN_SetSpritePicture(CInt(nsprite), CInt(entry)))
+func (sprite Sprite) SetSpritePicture(entry int) bool {
+	return convertBool(C.TLN_SetSpritePicture(CInt(sprite), CInt(entry)))
 }
 
 // TLNAPI bool TLN_SetSpritePalette (int nsprite, TLN_Palette palette);
-func SetSpritePalette(nsprite int, palette Palette) bool {
-	return convertBool(C.TLN_SetSpritePalette(CInt(nsprite), palette))
+func (sprite Sprite) SetSpritePalette(palette Palette) bool {
+	return convertBool(C.TLN_SetSpritePalette(CInt(sprite), palette.data))
 }
 
 // TLNAPI bool TLN_SetSpriteBlendMode (int nsprite, TLN_Blend mode, uint8_t factor);
-func SetSpriteBlendMode(nsprite int, mode Blend, factor uint8) bool {
-	return convertBool(C.TLN_SetSpriteBlendMode(CInt(nsprite), mode, CUint8(factor)))
+func (sprite Sprite) SetSpriteBlendMode(mode Blend, factor uint8) bool {
+	return convertBool(C.TLN_SetSpriteBlendMode(CInt(sprite), mode, CUint8(factor)))
 }
 
 // TLNAPI bool TLN_SetSpriteScaling (int nsprite, float sx, float sy);
-func SetSpriteScaling(nsprite int, sx, sy float32) bool {
-	return convertBool(C.TLN_SetSpriteScaling(CInt(nsprite), CFloat(sx), CFloat(sy)))
+func (sprite Sprite) SetSpriteScaling(sx, sy float32) bool {
+	return convertBool(C.TLN_SetSpriteScaling(CInt(sprite), CFloat(sx), CFloat(sy)))
 }
 
 // TLNAPI bool TLN_ResetSpriteScaling (int nsprite);
@@ -1409,37 +1529,37 @@ func ResetSpriteScaling(nsprite int) bool {
 // }
 
 // TLNAPI int  TLN_GetSpritePicture (int nsprite);
-func GetSpritePicture(nsprite int) int {
-	return int(C.TLN_GetSpritePicture(CInt(nsprite)))
+func (sprite Sprite) GetSpritePicture() int {
+	return int(C.TLN_GetSpritePicture(CInt(sprite)))
 }
 
 // TLNAPI int TLN_GetSpriteX(int nsprite);
-func GetSpriteX(nsprite int) int {
-	return int(C.TLN_GetSpriteX(CInt(nsprite)))
+func (sprite Sprite) GetSpriteX() int {
+	return int(C.TLN_GetSpriteX(CInt(sprite)))
 }
 
 // TLNAPI int TLN_GetSpriteY(int nsprite);
-func GetSpriteY(nsprite int) int {
-	return int(C.TLN_GetSpriteY(CInt(nsprite)))
+func (sprite Sprite) GetSpriteY() int {
+	return int(C.TLN_GetSpriteY(CInt(sprite)))
 }
 
 // TLNAPI int  TLN_GetAvailableSprite (void);
-func GetAvailableSprite() int {
-	return int(C.TLN_GetAvailableSprite())
+func GetAvailableSprite() Sprite {
+	return Sprite(C.TLN_GetAvailableSprite())
 }
 
 // TLNAPI bool TLN_EnableSpriteCollision (int nsprite, bool enable);
-func EnableSpriteCollision(nsprite int, enable bool) bool {
-	e := 0
-	if enable {
-		e = 1
-	}
-	return convertBool(C.TLN_EnableSpriteCollision(CInt(nsprite), CBool(e)))
+func (sprite Sprite) EnableSpriteCollision(enable bool) bool {
+	// e := 0
+	// if enable {
+	// 	e = 1
+	// }
+	return convertBool(C.TLN_EnableSpriteCollision(CInt(sprite), CBool(boolToUint8(enable))))
 }
 
 // TLNAPI bool TLN_GetSpriteCollision (int nsprite);
-func GetSpriteCollision(nsprite int) bool {
-	return convertBool(C.TLN_GetSpriteCollision(CInt(nsprite)))
+func (sprite Sprite) GetSpriteCollision() bool {
+	return convertBool(C.TLN_GetSpriteCollision(CInt(sprite)))
 }
 
 // TLNAPI bool TLN_GetSpriteState(int nsprite, TLN_SpriteState* state);
@@ -1447,27 +1567,27 @@ func getSpriteState(nsprite int, state *C.TLN_SpriteState) bool {
 	return convertBool(C.TLN_GetSpriteState(CInt(nsprite), state))
 }
 
-func GetSpriteState(nsprite int, state *SpriteState) bool {
-	return convertBool(C.TLN_GetSpriteState(CInt(nsprite), (*C.TLN_SpriteState)(unsafe.Pointer(state))))
+func (sprite Sprite) GetSpriteState(state *SpriteState) bool {
+	return convertBool(C.TLN_GetSpriteState(CInt(sprite), (*C.TLN_SpriteState)(unsafe.Pointer(state))))
 }
 
 // TLNAPI bool TLN_SetFirstSprite(int nsprite);
-func SetFirstSprite(nsprite int) bool {
-	return convertBool(C.TLN_SetFirstSprite(CInt(nsprite)))
+func (sprite Sprite) SetFirstSprite() bool {
+	return convertBool(C.TLN_SetFirstSprite(CInt(sprite)))
 }
 
 // TLNAPI bool TLN_SetNextSprite(int nsprite, int next);
-func SetNextSprite(nsprite, next int) bool {
-	return convertBool(C.TLN_SetNextSprite(CInt(nsprite), CInt(next)))
+func (sprite Sprite) SetNextSprite(next Sprite) bool {
+	return convertBool(C.TLN_SetNextSprite(CInt(sprite), CInt(next)))
 }
 
 // TLNAPI bool TLN_EnableSpriteMasking(int nsprite, bool enable);
-func EnableSpriteMasking(nsprite int, enable bool) bool {
-	e := 0
-	if enable {
-		e = 1
-	}
-	return convertBool(C.TLN_EnableSpriteMasking(CInt(nsprite), CBool(e)))
+func (sprite Sprite) EnableSpriteMasking(enable bool) bool {
+	// e := 0
+	// if enable {
+	// 	e = 1
+	// }
+	return convertBool(C.TLN_EnableSpriteMasking(CInt(sprite), CBool(boolToUint8(enable))))
 }
 
 // TLNAPI void TLN_SetSpritesMaskRegion(int top_line, int bottom_line);
@@ -1476,38 +1596,38 @@ func SetSpritesMaskRegion(top_line int, bottom_line int) {
 }
 
 // TLNAPI bool TLN_SetSpriteAnimation (int nsprite, TLN_Sequence sequence, int loop);
-func SetSpriteAnimation(nsprite int, sequence Sequence, loop int) bool {
-	return convertBool(C.TLN_SetSpriteAnimation(CInt(nsprite), sequence, CInt(loop)))
+func (sprite Sprite) SetSpriteAnimation(sequence Sequence, loop int) bool {
+	return convertBool(C.TLN_SetSpriteAnimation(CInt(sprite), sequence.data, CInt(loop)))
 }
 
 // TLNAPI bool TLN_DisableSpriteAnimation(int nsprite);
-func DisableSpriteAnimation(nsprite int) bool {
-	return convertBool(C.TLN_DisableSpriteAnimation(CInt(nsprite)))
+func (sprite Sprite) DisableSpriteAnimation() bool {
+	return convertBool(C.TLN_DisableSpriteAnimation(CInt(sprite)))
 }
 
 // TLNAPI bool TLN_PauseSpriteAnimation(int index);
-func PauseSpriteAnimation(index int) bool {
-	return convertBool(C.TLN_PauseSpriteAnimation(CInt(index)))
+func (sprite Sprite) PauseSpriteAnimation() bool {
+	return convertBool(C.TLN_PauseSpriteAnimation(CInt(sprite)))
 }
 
 // TLNAPI bool TLN_ResumeSpriteAnimation(int index);
-func ResumeSpriteAnimation(index int) bool {
-	return convertBool(C.TLN_ResumeSpriteAnimation(CInt(index)))
+func (sprite Sprite) ResumeSpriteAnimation() bool {
+	return convertBool(C.TLN_ResumeSpriteAnimation(CInt(sprite)))
 }
 
 // TLNAPI bool TLN_DisableAnimation(int index);
-func DisableAnimation(index int) bool {
-	return convertBool(C.TLN_DisableAnimation(CInt(index)))
+func (sprite Sprite) DisableAnimation() bool {
+	return convertBool(C.TLN_DisableAnimation(CInt(sprite)))
 }
 
 // TLNAPI bool TLN_DisableSprite (int nsprite);
-func DisableSprite(nsprite int) bool {
-	return convertBool(C.TLN_DisableSprite(CInt(nsprite)))
+func (sprite Sprite) DisableSprite() bool {
+	return convertBool(C.TLN_DisableSprite(CInt(sprite)))
 }
 
 // TLNAPI TLN_Palette TLN_GetSpritePalette (int nsprite);
-func GetSpritePalette(nsprite int) Palette {
-	return C.TLN_GetSpritePalette(CInt(nsprite))
+func (sprite Sprite) GetSpritePalette() Palette {
+	return Palette{data: C.TLN_GetSpritePalette(CInt(sprite))}
 }
 
 // }
@@ -1515,7 +1635,7 @@ func GetSpritePalette(nsprite int) Palette {
 // {
 // TLNAPI TLN_Sequence TLN_CreateSequence (const char* name, int target, int num_frames, TLN_SequenceFrame* frames);
 func createSequence(name string, target, num_frames int, frames *C.TLN_SequenceFrame) Sequence {
-	return C.TLN_CreateSequence(C.CString(name), CInt(target), CInt(num_frames), frames)
+	return Sequence{data: C.TLN_CreateSequence(C.CString(name), CInt(target), CInt(num_frames), frames)}
 }
 
 func CreateSequence(name string, target, num_frames int, frames *SequenceFrame) Sequence {
@@ -1524,7 +1644,7 @@ func CreateSequence(name string, target, num_frames int, frames *SequenceFrame) 
 
 // TLNAPI TLN_Sequence TLN_CreateCycle (const char* name, int num_strips, TLN_ColorStrip* strips);
 func createCycle(name string, num_strips int, strips *C.TLN_ColorStrip) Sequence {
-	return C.TLN_CreateCycle(C.CString(name), CInt(num_strips), strips)
+	return Sequence{data: C.TLN_CreateCycle(C.CString(name), CInt(num_strips), strips)}
 }
 
 func CreateCycle(name string, num_strips int, strips *ColorStrip) Sequence {
@@ -1533,26 +1653,31 @@ func CreateCycle(name string, num_strips int, strips *ColorStrip) Sequence {
 
 // TLNAPI TLN_Sequence TLN_CreateSpriteSequence(const char* name, TLN_Spriteset spriteset, const char* basename, int delay);
 func CreateSpriteSequence(name string, spriteset Spriteset, basename string, delay int) Sequence {
-	return C.TLN_CreateSpriteSequence(C.CString(name), spriteset, C.CString(basename), CInt(delay))
+	return Sequence{data: C.TLN_CreateSpriteSequence(C.CString(name), spriteset.data, C.CString(basename), CInt(delay))}
 }
 
 // TLNAPI TLN_Sequence TLN_CloneSequence (TLN_Sequence src);
-func CloneSequence(src Sequence) Sequence {
-	return C.TLN_CloneSequence(src)
+func (src Sequence) CloneSequence() Sequence {
+	return Sequence{data: C.TLN_CloneSequence(src.data)}
 }
 
 // TLNAPI bool TLN_GetSequenceInfo (TLN_Sequence sequence, TLN_SequenceInfo* info);
-func getSequenceInfo(sequence Sequence, info *C.TLN_SequenceInfo) bool {
-	return convertBool(C.TLN_GetSequenceInfo(sequence, info))
+func (sequence Sequence) GetSequenceInfo(info *SequenceInfo) bool {
+	return convertBool(C.TLN_GetSequenceInfo(sequence.data, (*C.TLN_SequenceInfo)(unsafe.Pointer(info))))
+	// return convertBool(C.TLN_GetSequenceInfo(sequence, (*C.TLN_SequenceInfo)(unsafe.Pointer(info))))
 }
 
-func GetSequenceInfo(sequence Sequence, info *SequenceInfo) bool {
-	return convertBool(C.TLN_GetSequenceInfo(sequence, (*C.TLN_SequenceInfo)(unsafe.Pointer(info))))
-}
+// func (sequence Sequence) getSequenceInfo(info *C.TLN_SequenceInfo) bool {
+// 	return convertBool(C.TLN_GetSequenceInfo(sequence.data, info))
+// }
 
 // TLNAPI bool TLN_DeleteSequence (TLN_Sequence sequence);
-func DeleteSequence(sequence Sequence) bool {
-	return convertBool(C.TLN_DeleteSequence(sequence))
+func (sequence *Sequence) DeleteSequence() bool {
+	a := convertBool(C.TLN_DeleteSequence(sequence.data))
+	if a {
+		sequence.data = nil
+	}
+	return a
 }
 
 // }
@@ -1560,37 +1685,41 @@ func DeleteSequence(sequence Sequence) bool {
 // {
 // TLNAPI TLN_SequencePack TLN_CreateSequencePack (void);
 func CreateSequencePack() SequencePack {
-	return C.TLN_CreateSequencePack()
+	return SequencePack{data: C.TLN_CreateSequencePack()}
 }
 
 // TLNAPI TLN_SequencePack TLN_LoadSequencePack (const char* filename);
 func LoadSequencePack(filename string) SequencePack {
-	return C.TLN_LoadSequencePack(C.CString(filename))
+	return SequencePack{data: C.TLN_LoadSequencePack(C.CString(filename))}
 }
 
 // TLNAPI TLN_Sequence TLN_GetSequence (TLN_SequencePack sp, int index);
-func GetSequence(sp SequencePack, index int) Sequence {
-	return C.TLN_GetSequence(sp, CInt(index))
+func (sp SequencePack) GetSequence(index int) Sequence {
+	return Sequence{data: C.TLN_GetSequence(sp.data, CInt(index))}
 }
 
 // TLNAPI TLN_Sequence TLN_FindSequence (TLN_SequencePack sp, const char* name);
-func FindSequence(sp SequencePack, name string) Sequence {
-	return C.TLN_FindSequence(sp, C.CString(name))
+func (sp SequencePack) FindSequence(name string) Sequence {
+	return Sequence{data: C.TLN_FindSequence(sp.data, C.CString(name))}
 }
 
 // TLNAPI int TLN_GetSequencePackCount (TLN_SequencePack sp);
-func GetSequencePackCount(sp SequencePack) int {
-	return int(C.TLN_GetSequencePackCount(sp))
+func (sp SequencePack) GetSequencePackCount() int {
+	return int(C.TLN_GetSequencePackCount(sp.data))
 }
 
 // TLNAPI bool TLN_AddSequenceToPack (TLN_SequencePack sp, TLN_Sequence sequence);
-func AddSequenceToPack(sp SequencePack, sequence Sequence) bool {
-	return convertBool(C.TLN_AddSequenceToPack(sp, sequence))
+func (sp SequencePack) AddSequenceToPack(sequence Sequence) bool {
+	return convertBool(C.TLN_AddSequenceToPack(sp.data, sequence.data))
 }
 
 // TLNAPI bool TLN_DeleteSequencePack (TLN_SequencePack sp);
-func DeleteSequencePack(sp SequencePack) bool {
-	return convertBool(C.TLN_DeleteSequencePack(sp))
+func (sp *SequencePack) DeleteSequencePack() bool {
+	a := convertBool(C.TLN_DeleteSequencePack(sp.data))
+	if a {
+		sp.data = nil
+	}
+	return a
 }
 
 // }
@@ -1598,16 +1727,16 @@ func DeleteSequencePack(sp SequencePack) bool {
 // {
 // TLNAPI bool TLN_SetPaletteAnimation (int index, TLN_Palette palette, TLN_Sequence sequence, bool blend);
 func SetPaletteAnimation(index int, palette Palette, sequence Sequence, blend bool) bool {
-	b := 0
-	if blend {
-		b = 1
-	}
-	return convertBool(C.TLN_SetPaletteAnimation(CInt(index), palette, sequence, CBool(b)))
+	// b := 0
+	// if blend {
+	// 	b = 1
+	// }
+	return convertBool(C.TLN_SetPaletteAnimation(CInt(index), palette.data, sequence.data, CBool(boolToUint8(blend))))
 }
 
 // TLNAPI bool TLN_SetPaletteAnimationSource (int index, TLN_Palette);
 func SetPaletteAnimationSource(index int, palette Palette) bool {
-	return convertBool(C.TLN_SetPaletteAnimationSource(CInt(index), palette))
+	return convertBool(C.TLN_SetPaletteAnimationSource(CInt(index), palette.data))
 }
 
 // TLNAPI bool TLN_GetAnimationState (int index);
@@ -1649,8 +1778,8 @@ func SetLayerParallaxFactor(nlayer int, x, y float32) bool {
 }
 
 // TLNAPI bool TLN_SetSpriteWorldPosition(int nsprite, int x, int y);
-func SetSpriteWorldPosition(nsprite, x, y int) bool {
-	return convertBool(C.TLN_SetSpriteWorldPosition(CInt(nsprite), CInt(x), CInt(y)))
+func (sprite Sprite) SetSpriteWorldPosition(x, y int) bool {
+	return convertBool(C.TLN_SetSpriteWorldPosition(CInt(sprite), CInt(x), CInt(y)))
 }
 
 // TLNAPI void TLN_ReleaseWorld(void);
@@ -1659,3 +1788,9 @@ func ReleaseWorld() {
 }
 
 // }
+
+// func TestPointer(ptr unsafe.Pointer) int {
+// 	return 0
+// }
+
+// func ConvertPointer[T any](ptr unsafe.Pointer) *T { return (*T)(ptr) }
